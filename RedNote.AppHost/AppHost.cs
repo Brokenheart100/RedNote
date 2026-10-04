@@ -15,15 +15,17 @@ var publicOrigin = builder.AddParameter(
 
 var gatewayPublicUrl = builder.AddParameter(
     "gateway-public-url",
-    "https://collectables-consistently-compliant-blowing.trycloudflare.com ",
+    "http://localhost:8080",
     publishValueAsDefault: true,
     secret: false);
 
 var frontendPublicUrl = builder.AddParameter(
     "frontend-public-url",
-    "https://exchanges-valued-larry-amendment.trycloudflare.com",
+    "http://localhost:3000",
     publishValueAsDefault: true,
     secret: false);
+
+
 
 var nuxtSessionPassword = builder.AddParameter(
     "nuxt-session-password",

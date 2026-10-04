@@ -1,0 +1,64 @@
+# .NET build and publish outputs
+**/bin/
+**/obj/
+**/TestResults/
+artifacts/
+*.nupkg
+*.snupkg
+
+# Local IDE state
+.vs/
+.idea/
+.fleet/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Nuxt / Node dependencies and generated outputs
+node_modules/
+.nuxt/
+.output/
+.nitro/
+.data/
+.cache/
+dist/
+
+# Python environments and test caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+.coverage
+.coverage.*
+htmlcov/
+coverage/
+coverage.xml
+
+# Playwright reports and authentication state
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+playwright/.auth/
+
+# Aspire generated deployment output
+/RedNote.AppHost/aspire-output/
+
+# Local environment files (keep example templates)
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# Logs and temporary files
+logs/
+*.log
+*.tmp
+*.bak
+
+# OS metadata
+.DS_Store
+Thumbs.db
+Desktop.ini

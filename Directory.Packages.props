@@ -34,7 +34,7 @@
       Include="WolverineFx"
       Version="6.38.0" />
     <PackageVersion
-      Include=" "
+      Include="WolverineFx.RabbitMQ"
       Version="6.38.0" />
     <PackageVersion Include="WolverineFx.Http" Version="6.38.0" />
     <PackageVersion

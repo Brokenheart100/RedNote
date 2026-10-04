@@ -96,6 +96,7 @@
             "WolverineFx.Grpc": "6.38.0",
             "WolverineFx.Http": "6.38.0",
             "WolverineFx.Postgresql": "6.38.0",
+            "WolverineFx.RabbitMQ": "6.38.0",
             "WolverineFx.RuntimeCompilation": "6.38.0",
             "Yarp.ReverseProxy": "2.3.0"
           },
@@ -628,6 +629,7 @@
             "WolverineFx.Grpc": "6.38.0",
             "WolverineFx.Http": "6.38.0",
             "WolverineFx.Postgresql": "6.38.0",
+            "WolverineFx.RabbitMQ": "6.38.0",
             "WolverineFx.RuntimeCompilation": "6.38.0",
             "Yarp.ReverseProxy": "2.3.0"
           },
@@ -1049,7 +1051,8 @@
             },
             "WolverineFx.RabbitMQ": {
               "target": "Package",
-              "version": "(, )"
+              "version": "[6.38.0, )",
+              "versionCentrallyManaged": true
             },
             "WolverineFx.RuntimeCompilation": {
               "target": "Package",
@@ -1093,6 +1096,7 @@
             "WolverineFx.Grpc": "6.38.0",
             "WolverineFx.Http": "6.38.0",
             "WolverineFx.Postgresql": "6.38.0",
+            "WolverineFx.RabbitMQ": "6.38.0",
             "WolverineFx.RuntimeCompilation": "6.38.0",
             "Yarp.ReverseProxy": "2.3.0"
           },
@@ -1655,6 +1659,7 @@
             "WolverineFx.Grpc": "6.38.0",
             "WolverineFx.Http": "6.38.0",
             "WolverineFx.Postgresql": "6.38.0",
+            "WolverineFx.RabbitMQ": "6.38.0",
             "WolverineFx.RuntimeCompilation": "6.38.0",
             "Yarp.ReverseProxy": "2.3.0"
           },
