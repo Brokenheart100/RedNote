@@ -1,0 +1,12 @@
+D:\Code\CSharp\RedNote\RedNote.Contracts\bin\Release\net10.0\RedNote.Contracts.deps.json
+D:\Code\CSharp\RedNote\RedNote.Contracts\bin\Release\net10.0\RedNote.Contracts.dll
+D:\Code\CSharp\RedNote\RedNote.Contracts\bin\Release\net10.0\RedNote.Contracts.pdb
+D:\Code\CSharp\RedNote\RedNote.Contracts\obj\Release\net10.0\RedNote.Contracts.csproj.AssemblyReference.cache
+D:\Code\CSharp\RedNote\RedNote.Contracts\obj\Release\net10.0\RedNote.Contracts.GeneratedMSBuildEditorConfig.editorconfig
+D:\Code\CSharp\RedNote\RedNote.Contracts\obj\Release\net10.0\RedNote.Contracts.AssemblyInfoInputs.cache
+D:\Code\CSharp\RedNote\RedNote.Contracts\obj\Release\net10.0\RedNote.Contracts.AssemblyInfo.cs
+D:\Code\CSharp\RedNote\RedNote.Contracts\obj\Release\net10.0\RedNote.Contracts.csproj.CoreCompileInputs.cache
+D:\Code\CSharp\RedNote\RedNote.Contracts\obj\Release\net10.0\RedNote.Contracts.dll
+D:\Code\CSharp\RedNote\RedNote.Contracts\obj\Release\net10.0\refint\RedNote.Contracts.dll
+D:\Code\CSharp\RedNote\RedNote.Contracts\obj\Release\net10.0\RedNote.Contracts.pdb
+D:\Code\CSharp\RedNote\RedNote.Contracts\obj\Release\net10.0\ref\RedNote.Contracts.dll

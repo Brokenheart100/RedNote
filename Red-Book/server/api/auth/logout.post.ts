@@ -1,0 +1,117 @@
+import {
+    createUpstreamCookieHeader,
+    getIdentityCsrfContext,
+    getUpstreamSetCookies,
+} from '~~/server/utils/identity-antiforgery'
+
+import {
+    getFetchErrorStatusCode,
+} from '~~/server/utils/fetch-error'
+
+export default defineEventHandler(async event => {
+    const requestId = event.context.requestId ?? crypto.randomUUID()
+
+    const session = await getUserSession(event)
+    const sessionId = session.id
+
+    const config = useRuntimeConfig(event)
+
+    if (!config.gatewayBaseUrl) {
+        throw createError({
+            statusCode: 500,
+            statusMessage: 'Internal Gateway base URL is not configured.',
+        })
+    }
+
+    const browserCookie = getHeader(event, 'cookie')
+
+    let identityLogoutError: unknown = null
+
+    try {
+        const csrf = await getIdentityCsrfContext(
+            config.gatewayBaseUrl,
+            requestId,
+        )
+
+        /*
+         * 浏览器可能已经持有 Identity Application Cookie。
+         * CSRF 请求又会返回新的 antiforgery cookie。
+         *
+         * 两者需要合并后再发给 IdentityService。
+         */
+        const cookies = [
+            browserCookie,
+            csrf.cookieHeader,
+        ]
+            .filter((value): value is string => Boolean(value))
+            .join('; ')
+
+        const logoutResponse = await $fetch.raw<void>(
+            '/api/v1/auth/session/logout',
+            {
+                baseURL: config.gatewayBaseUrl,
+                method: 'POST',
+
+                headers: {
+                    Cookie: cookies,
+                    [csrf.headerName]: csrf.token,
+                    'X-Request-ID': requestId,
+                },
+            },
+        )
+
+        /*
+         * IdentityService logout 返回的 Set-Cookie 一般包含
+         * 过期/删除 Identity Cookie。
+         *
+         * 这里必须转发给浏览器，否则浏览器仍然持有旧 Cookie。
+         */
+        const setCookies = getUpstreamSetCookies(
+            logoutResponse.headers,
+        )
+
+        for (const setCookie of setCookies) {
+            appendResponseHeader(
+                event,
+                'set-cookie',
+                setCookie,
+            )
+        }
+    }
+    catch (error: unknown) {
+        identityLogoutError = error
+
+        const statusCode = getFetchErrorStatusCode(
+            error,
+            502,
+        )
+
+        console.error('❌ [BFF] Identity logout failed', {
+            requestId,
+            statusCode,
+            error,
+        })
+    }
+
+    /*
+     * 即使 Identity logout 失败，
+     * 本地 Nuxt session / token store 也必须清理，
+     * 避免用户留在半登录状态。
+     */
+    if (sessionId) {
+        await removeAuthTokenSet(sessionId)
+    }
+
+    await clearUserSession(event)
+
+    if (identityLogoutError) {
+        throw createError({
+            statusCode: 502,
+            statusMessage: 'Identity logout failed.',
+        })
+    }
+
+    return {
+        success: true,
+    }
+})

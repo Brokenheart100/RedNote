@@ -1,0 +1,196 @@
+var builder = DistributedApplication.CreateBuilder(args);
+
+builder.AddDockerComposeEnvironment("compose");
+
+var rabbitMq = builder
+    .AddRabbitMQ("rabbitmq");
+
+var redis = builder
+    .AddRedis("redis")
+    .WithDataVolume(isReadOnly: false);
+
+// 使用命名数据卷保存本地开发数据。
+// AppHost 或 PostgreSQL 容器重启后，数据库数据不会丢失。
+var postgres = builder
+    .AddPostgres("postgres")
+    .WithHostPort(6543)
+    .WithDataVolume("postgres-data");
+
+// 每个微服务使用独立数据库，禁止跨微服务直接访问数据表。
+var identityDatabase = postgres.AddDatabase("identitydb");
+var userDatabase = postgres.AddDatabase("userdb");
+var contentDatabase = postgres.AddDatabase("contentdb");
+var mediaDatabase = postgres.AddDatabase("mediadb");
+var searchDatabase = postgres.AddDatabase("searchdb");
+
+var minio = builder
+    .AddContainer(
+        "minio",
+        "minio/minio")
+    .WithArgs(
+        "server",
+        "/data",
+        "--console-address",
+        ":9001")
+    .WithEnvironment(
+        "MINIO_ROOT_USER",
+        "minioadmin")
+    .WithEnvironment(
+        "MINIO_ROOT_PASSWORD",
+        "minioadmin123")
+    .WithHttpEndpoint(
+        port: 9000,
+        targetPort: 9000,
+        name: "s3")
+    .WithHttpEndpoint(
+        port: 9001,
+        targetPort: 9001,
+        name: "console")
+    .WithVolume(
+        "minio-data",
+        "/data");
+
+var identityService = builder
+    .AddProject<Projects.RedNote_IdentityService>("identity-service")
+    .WithReference(identityDatabase)
+    .WaitFor(identityDatabase);
+
+var userService = builder
+    .AddProject<Projects.RedNote_UserService>("user-service")
+    .WithReference(userDatabase)
+    .WithReference(identityService)
+    .WithReference(rabbitMq)
+    .WaitFor(userDatabase)
+    .WaitFor(identityService)
+    .WaitFor(rabbitMq);
+
+var mediaService = builder
+    .AddProject<Projects.RedNote_MediaService>("media-service")
+    .WithReference(mediaDatabase)
+    .WithReference(identityService)
+    .WaitFor(mediaDatabase)
+    .WaitFor(identityService)
+    .WaitFor(minio)
+    .WithEnvironment(
+        "S3__ServiceUrl",
+        "http://localhost:9000")
+    .WithEnvironment(
+        "S3__AccessKey",
+        "minioadmin")
+    .WithEnvironment(
+        "S3__SecretKey",
+        "minioadmin123")
+    .WithEnvironment(
+        "S3__BucketName",
+        "rednote-media");
+
+
+var contentService = builder
+    .AddProject<Projects.RedNote_ContentService>("content-service")
+   .WithReference(contentDatabase)
+    .WithReference(identityService)
+    .WithReference(mediaService)
+    .WithReference(userService)
+    .WithReference(rabbitMq)
+    .WaitFor(rabbitMq)
+    .WaitFor(contentDatabase)
+    .WaitFor(identityService)
+    .WaitFor(userService)
+    .WaitFor(mediaService);
+
+var openSearch = builder
+    .AddContainer("opensearch", "opensearchproject/opensearch", "3.8.0")
+    .WithEnvironment(
+        "discovery.type",
+        "single-node")
+    .WithEnvironment(
+        "DISABLE_SECURITY_PLUGIN",
+        "true")
+    .WithEnvironment(
+        "OPENSEARCH_JAVA_OPTS",
+        "-Xms512m -Xmx512m")
+    .WithHttpEndpoint(
+        port: 9200,
+        targetPort: 9200,
+        name: "http")
+    .WithVolume(
+        "opensearch-data",
+        "/usr/share/opensearch/data");
+
+var searchService = builder
+    .AddProject<Projects.RedNote_SearchService>("search-service")
+    .WithReference(contentService)
+    .WithReference(searchDatabase)
+    .WithReference(openSearch.GetEndpoint("http"))
+    .WithReference(rabbitMq)
+    .WaitFor(rabbitMq)
+    .WaitFor(contentService)
+    .WaitFor(openSearch)
+    .WithEnvironment(
+        "OpenSearch__Url",
+        openSearch.GetEndpoint("http"));
+
+var gateway = builder
+    .AddProject<Projects.RedNote_Gateway>("gateway")
+    .WithReference(identityService)
+    .WithReference(userService)
+    .WithReference(contentService)
+    .WithReference(mediaService)
+    .WithReference(searchService)
+    .WaitFor(identityService)
+    .WaitFor(userService)
+    .WaitFor(contentService)
+    .WaitFor(mediaService)
+    .WaitFor(searchService)
+    .WithExternalHttpEndpoints();
+
+#pragma warning disable ASPIREJAVASCRIPT001
+
+var frontend = builder
+    .AddViteApp("frontend", "../Red-Book")
+    .WithNpm()
+    .PublishAsNodeServer(
+        entryPoint: ".output/server/index.mjs",
+        outputPath: ".output")
+    .WithReference(gateway)
+    .WaitFor(gateway)
+    .WithReference(redis)
+    .WaitFor(redis)
+    .WithHttpEndpoint(port: 3000)
+    .WithEnvironment("NUXT_PUBLIC_API_BASE_URL", gateway.GetEndpoint("https"))
+    .WithExternalHttpEndpoints();
+
+var frontendEndpoint = frontend.GetEndpoint("http");
+
+var frontendRedirectUri = ReferenceExpression.Create($"{frontendEndpoint}/auth/rednote");
+
+frontend.WithEnvironment("NUXT_OAUTH_OIDC_CLIENT_ID", "rednote-web")
+.WithEnvironment("NUXT_OAUTH_OIDC_OPENID_CONFIG", ReferenceExpression.Create($"{gateway.GetEndpoint("https")}/.well-known/openid-configuration"))
+
+    .WithEnvironment(
+        "NUXT_OAUTH_OIDC_REDIRECT_URL",
+        frontendRedirectUri)
+
+    .WithEnvironment(
+        "NUXT_SESSION_PASSWORD",
+        "rednote-dev-auth-utils-session-password-12345678901234567890");
+
+identityService
+    .WithEnvironment(
+        "OpenIddict__PublicBaseUrl",
+        gateway.GetEndpoint("https"))
+
+    .WithEnvironment(
+        "OpenIddict__Clients__RedNoteWeb__LoginUri",
+        ReferenceExpression.Create(
+            $"{frontendEndpoint}/login"))
+
+    .WithEnvironment(
+        "OpenIddict__Clients__RedNoteWeb__RedirectUri",
+        frontendRedirectUri)
+
+    .WithEnvironment(
+        "OpenIddict__Clients__RedNoteWeb__PostLogoutRedirectUri",
+        frontendEndpoint);
+
+builder.Build().Run();

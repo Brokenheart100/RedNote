@@ -1,0 +1,12 @@
+D:\Code\CSharp\RedNote\RedNote.Authentication\bin\Release\net10.0\RedNote.Authentication.deps.json
+D:\Code\CSharp\RedNote\RedNote.Authentication\bin\Release\net10.0\RedNote.Authentication.dll
+D:\Code\CSharp\RedNote\RedNote.Authentication\bin\Release\net10.0\RedNote.Authentication.pdb
+D:\Code\CSharp\RedNote\RedNote.Authentication\obj\Release\net10.0\RedNote.Authentication.csproj.AssemblyReference.cache
+D:\Code\CSharp\RedNote\RedNote.Authentication\obj\Release\net10.0\RedNote.Authentication.GeneratedMSBuildEditorConfig.editorconfig
+D:\Code\CSharp\RedNote\RedNote.Authentication\obj\Release\net10.0\RedNote.Authentication.AssemblyInfoInputs.cache
+D:\Code\CSharp\RedNote\RedNote.Authentication\obj\Release\net10.0\RedNote.Authentication.AssemblyInfo.cs
+D:\Code\CSharp\RedNote\RedNote.Authentication\obj\Release\net10.0\RedNote.Authentication.csproj.CoreCompileInputs.cache
+D:\Code\CSharp\RedNote\RedNote.Authentication\obj\Release\net10.0\RedNote.Authentication.dll
+D:\Code\CSharp\RedNote\RedNote.Authentication\obj\Release\net10.0\refint\RedNote.Authentication.dll
+D:\Code\CSharp\RedNote\RedNote.Authentication\obj\Release\net10.0\RedNote.Authentication.pdb
+D:\Code\CSharp\RedNote\RedNote.Authentication\obj\Release\net10.0\ref\RedNote.Authentication.dll

@@ -1,0 +1,405 @@
+var builder = DistributedApplication.CreateBuilder(args);
+
+#pragma warning disable ASPIREJAVASCRIPT001
+
+/*
+ * ============================================================
+ * Docker Compose
+ * ============================================================
+ */
+
+var compose = builder.AddDockerComposeEnvironment("compose");
+
+/*
+ * ============================================================
+ * 本地 Docker 对外地址
+ * ============================================================
+ *
+ * 这些地址是浏览器访问的宿主机地址。
+ *
+ * 注意：
+ * Docker 容器内部不能使用 localhost 来访问其他容器。
+ */
+
+const string FrontendPublicUrl = "http://localhost:3000";
+const string GatewayPublicUrl = "http://localhost:8080";
+
+const string FrontendRedirectUrl =
+    $"{FrontendPublicUrl}/auth/rednote";
+
+const string FrontendLoginUrl =
+    $"{FrontendPublicUrl}/login";
+
+/*
+ * ============================================================
+ * RabbitMQ
+ * ============================================================
+ */
+
+var rabbitMq = builder
+    .AddRabbitMQ("rabbitmq");
+
+/*
+ * ============================================================
+ * Redis
+ * ============================================================
+ */
+
+var redis = builder
+    .AddRedis("redis")
+    .WithDataVolume(isReadOnly: false);
+
+/*
+ * ============================================================
+ * PostgreSQL
+ * ============================================================
+ *
+ * 6543 仅用于宿主机开发工具连接。
+ *
+ * Docker Compose 内服务之间仍通过：
+ *
+ * postgres:5432
+ *
+ * 通信。
+ */
+
+var postgres = builder
+    .AddPostgres("postgres")
+    .WithHostPort(6543)
+    .WithDataVolume("postgres-data");
+
+/*
+ * 每个微服务拥有独立数据库。
+ *
+ * 禁止服务之间直接跨数据库读取其他服务的数据表。
+ */
+
+var identityDatabase =
+    postgres.AddDatabase("identitydb");
+
+var userDatabase =
+    postgres.AddDatabase("userdb");
+
+var contentDatabase =
+    postgres.AddDatabase("contentdb");
+
+var mediaDatabase =
+    postgres.AddDatabase("mediadb");
+
+var searchDatabase =
+    postgres.AddDatabase("searchdb");
+
+/*
+ * ============================================================
+ * MinIO
+ * ============================================================
+ */
+
+var minio = builder
+    .AddContainer(
+        "minio",
+        "minio/minio")
+    .WithArgs(
+        "server",
+        "/data",
+        "--console-address",
+        ":9001")
+    .WithEnvironment(
+        "MINIO_ROOT_USER",
+        "minioadmin")
+    .WithEnvironment(
+        "MINIO_ROOT_PASSWORD",
+        "minioadmin123")
+    .WithHttpEndpoint(
+        port: 9000,
+        targetPort: 9000,
+        name: "s3")
+    .WithHttpEndpoint(
+        port: 9001,
+        targetPort: 9001,
+        name: "console")
+    .WithVolume(
+        "minio-data",
+        "/data");
+
+// var minioS3Endpoint =
+//     minio.GetEndpoint("s3");
+
+/*
+ * Docker Compose 发布时：
+ *
+ * minioS3Host
+ *
+ * 会解析为 Docker Compose 网络中的服务名，例如：
+ *
+ * minio
+ *
+ * 官方 Aspire Docker Compose API 专门提供
+ * GetHostAddressExpression() 来解决这种情况。
+ */
+
+// var minioS3Host =
+//     compose.Resource.GetHostAddressExpression(
+//         minioS3Endpoint);
+
+// var minioInternalUrl =
+//     ReferenceExpression.Create(
+//         $"http://{minioS3Host}:9000");
+
+/*
+ * ============================================================
+ * IdentityService
+ * ============================================================
+ */
+
+var identityService = builder
+    .AddProject<Projects.RedNote_IdentityService>(
+        "identity-service")
+    .WithReference(identityDatabase)
+    .WaitFor(identityDatabase);
+
+/*
+ * ============================================================
+ * UserService
+ * ============================================================
+ */
+
+var userService = builder
+    .AddProject<Projects.RedNote_UserService>(
+        "user-service")
+    .WithReference(userDatabase)
+    .WithReference(identityService)
+    .WithReference(rabbitMq)
+    .WaitFor(userDatabase)
+    .WaitFor(identityService)
+    .WaitFor(rabbitMq);
+
+/*
+ * ============================================================
+ * MediaService
+ * ============================================================
+ */
+
+var mediaService = builder
+    .AddProject<Projects.RedNote_MediaService>("media-service")
+    .WithReference(mediaDatabase)
+    .WithReference(identityService)
+    .WaitFor(mediaDatabase)
+    .WaitFor(identityService)
+    .WaitFor(minio)
+    .WithEnvironment(
+        "S3__ServiceUrl",
+        minio.GetEndpoint("s3"))
+    .WithEnvironment(
+        "S3__AccessKey",
+        "minioadmin")
+    .WithEnvironment(
+        "S3__SecretKey",
+        "minioadmin123")
+    .WithEnvironment(
+        "S3__BucketName",
+        "rednote-media");
+
+/*
+ * ============================================================
+ * ContentService
+ * ============================================================
+ */
+
+var contentService = builder
+    .AddProject<Projects.RedNote_ContentService>(
+        "content-service")
+    .WithReference(contentDatabase)
+    .WithReference(identityService)
+    .WithReference(mediaService)
+    .WithReference(userService)
+    .WithReference(rabbitMq)
+    .WaitFor(rabbitMq)
+    .WaitFor(contentDatabase)
+    .WaitFor(identityService)
+    .WaitFor(userService)
+    .WaitFor(mediaService);
+
+/*
+ * ============================================================
+ * OpenSearch
+ * ============================================================
+ */
+
+var openSearch = builder
+    .AddContainer(
+        "opensearch",
+        "opensearchproject/opensearch",
+        "3.8.0")
+    .WithEnvironment(
+        "discovery.type",
+        "single-node")
+    .WithEnvironment(
+        "DISABLE_SECURITY_PLUGIN",
+        "true")
+    .WithEnvironment(
+        "OPENSEARCH_JAVA_OPTS",
+        "-Xms512m -Xmx512m")
+    .WithHttpEndpoint(
+        port: 9200,
+        targetPort: 9200,
+        name: "http")
+    .WithVolume(
+        "opensearch-data",
+        "/usr/share/opensearch/data");
+
+/*
+ * ============================================================
+ * SearchService
+ * ============================================================
+ */
+
+var searchService = builder
+    .AddProject<Projects.RedNote_SearchService>(
+        "search-service")
+    .WithReference(contentService)
+    .WithReference(searchDatabase)
+    .WithReference(
+        openSearch.GetEndpoint("http"))
+    .WithReference(rabbitMq)
+    .WaitFor(rabbitMq)
+    .WaitFor(contentService)
+    .WaitFor(openSearch)
+    .WithEnvironment(
+        "OpenSearch__Url",
+        openSearch.GetEndpoint("http"));
+
+/*
+ * ============================================================
+ * Gateway
+ * ============================================================
+ *
+ * Docker smoke test 第一阶段统一使用 HTTP。
+ *
+ * 固定宿主机端口：
+ *
+ * http://localhost:8080
+ *
+ * 容器内部仍通过 Aspire service discovery：
+ *
+ * http://gateway:<container-port>
+ *
+ * 通信。
+ */
+
+var gateway = builder
+    .AddProject<Projects.RedNote_Gateway>(
+        "gateway")
+    .WithReference(identityService)
+    .WithReference(userService)
+    .WithReference(contentService)
+    .WithReference(mediaService)
+    .WithReference(searchService)
+    .WaitFor(identityService)
+    .WaitFor(userService)
+    .WaitFor(contentService)
+    .WaitFor(mediaService)
+    .WaitFor(searchService)
+    .WithHttpEndpoint(
+        port: 8080,
+        name: "http")
+    .WithExternalHttpEndpoints();
+
+/*
+ * ============================================================
+ * Frontend / Nuxt 4
+ * ============================================================
+ *
+ * Nuxt 当前使用 Nitro node-server：
+ *
+ * npm run build
+ * node .output/server/index.mjs
+ */
+
+var frontend = builder
+    .AddViteApp(
+        "frontend",
+        "../Red-Book")
+    .WithNpm()
+    .PublishAsNodeServer(
+        entryPoint: ".output/server/index.mjs",
+        outputPath: ".output")
+    .WithReference(gateway)
+    .WaitFor(gateway)
+    .WithReference(redis)
+    .WaitFor(redis)
+    .WithHttpEndpoint(
+        port: 3000,
+        targetPort: 3000,
+        name: "http",
+         isProxied: false)
+    .WithExternalHttpEndpoints();
+
+/*
+ * ============================================================
+ * Nuxt -> Gateway
+ * ============================================================
+ *
+ * 这里必须区分两个地址：
+ *
+ * 1. 浏览器使用：
+ *
+ *    http://localhost:8080
+ *
+ * 2. Nuxt Nitro Server 容器内部使用：
+ *
+ *    Aspire 注入的 GATEWAY_HTTP
+ *    / services__gateway__http__0
+ *
+ * public.apiBaseUrl 会暴露到浏览器，因此必须使用 localhost。
+ */
+
+frontend
+    .WithEnvironment(
+        "NUXT_PUBLIC_API_BASE_URL",
+        GatewayPublicUrl)
+    .WithEnvironment(
+        "NUXT_OAUTH_OIDC_CLIENT_ID",
+        "rednote-web")
+    .WithEnvironment(
+        "NUXT_OAUTH_OIDC_OPENID_CONFIG",
+        $"{GatewayPublicUrl}/.well-known/openid-configuration")
+    .WithEnvironment(
+        "NUXT_OAUTH_OIDC_REDIRECT_URL",
+        FrontendRedirectUrl)
+    .WithEnvironment(
+        "NUXT_SESSION_PASSWORD",
+        "rednote-dev-auth-utils-session-password-12345678901234567890");
+
+/*
+ * ============================================================
+ * IdentityService / OpenIddict
+ * ============================================================
+ *
+ * OpenIddict 的 Issuer / RedirectUri / LoginUri
+ * 最终都会被浏览器使用，因此这里使用宿主机公开 URL。
+ */
+
+identityService
+    .WithEnvironment(
+        "OpenIddict__PublicBaseUrl",
+        GatewayPublicUrl)
+    .WithEnvironment(
+        "OpenIddict__Clients__RedNoteWeb__LoginUri",
+        FrontendLoginUrl)
+    .WithEnvironment(
+        "OpenIddict__Clients__RedNoteWeb__RedirectUri",
+        FrontendRedirectUrl)
+    .WithEnvironment(
+        "OpenIddict__Clients__RedNoteWeb__PostLogoutRedirectUri",
+        FrontendPublicUrl);
+
+/*
+ * ============================================================
+ * Run
+ * ============================================================
+ */
+
+builder.Build().Run();
+
+#pragma warning restore ASPIREJAVASCRIPT001

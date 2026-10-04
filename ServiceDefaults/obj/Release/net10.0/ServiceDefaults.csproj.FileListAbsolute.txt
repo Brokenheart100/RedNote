@@ -1,0 +1,12 @@
+D:\Code\CSharp\RedNote\ServiceDefaults\bin\Release\net10.0\ServiceDefaults.deps.json
+D:\Code\CSharp\RedNote\ServiceDefaults\bin\Release\net10.0\ServiceDefaults.dll
+D:\Code\CSharp\RedNote\ServiceDefaults\bin\Release\net10.0\ServiceDefaults.pdb
+D:\Code\CSharp\RedNote\ServiceDefaults\obj\Release\net10.0\ServiceDefaults.csproj.AssemblyReference.cache
+D:\Code\CSharp\RedNote\ServiceDefaults\obj\Release\net10.0\ServiceDefaults.GeneratedMSBuildEditorConfig.editorconfig
+D:\Code\CSharp\RedNote\ServiceDefaults\obj\Release\net10.0\ServiceDefaults.AssemblyInfoInputs.cache
+D:\Code\CSharp\RedNote\ServiceDefaults\obj\Release\net10.0\ServiceDefaults.AssemblyInfo.cs
+D:\Code\CSharp\RedNote\ServiceDefaults\obj\Release\net10.0\ServiceDefaults.csproj.CoreCompileInputs.cache
+D:\Code\CSharp\RedNote\ServiceDefaults\obj\Release\net10.0\ServiceDefaults.dll
+D:\Code\CSharp\RedNote\ServiceDefaults\obj\Release\net10.0\refint\ServiceDefaults.dll
+D:\Code\CSharp\RedNote\ServiceDefaults\obj\Release\net10.0\ServiceDefaults.pdb
+D:\Code\CSharp\RedNote\ServiceDefaults\obj\Release\net10.0\ref\ServiceDefaults.dll

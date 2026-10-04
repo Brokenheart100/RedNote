@@ -1,0 +1,14 @@
+root = true
+
+# C# 全局规则
+[**/*.cs]
+
+dotnet_diagnostic.CA1848.severity = none
+dotnet_diagnostic.CA1873.severity = none
+
+
+# EF Core Migration 特殊规则
+[**/Infrastructure/Persistence/Migrations/*.cs]
+
+# EF Core 迁移只执行有限次数，CA1861 的数组分配优化没有实际价值。
+dotnet_diagnostic.CA1861.severity = none    

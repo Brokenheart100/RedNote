@@ -1,0 +1,98 @@
+[
+  {
+    "ContainingType": "RedNote.MediaService.Features.Media.GetMedia.GetMediaEndpoint",
+    "Method": "Get",
+    "RelativePath": "api/v1/media/{mediaId:guid}",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "mediaId",
+        "Type": "System.Guid",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "Microsoft.AspNetCore.Http.IResult",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 200
+      },
+      {
+        "Type": "",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 404
+      }
+    ],
+    "EndpointName": "RedNote.MediaService.Features.Media.GetMedia.GetMediaEndpoint.Get",
+    "Description": "GET_media_mediaId",
+    "Summary": "GET_media_mediaId"
+  },
+  {
+    "ContainingType": "RedNote.MediaService.Features.Media.GetMediaBatch.GetMediaBatchEndpoint",
+    "Method": "Post",
+    "RelativePath": "api/v1/media/batch",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "GetMediaBatchRequest",
+        "Type": "RedNote.MediaService.Features.Media.GetMediaBatch.GetMediaBatchRequest",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "Microsoft.AspNetCore.Http.IResult",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 200
+      },
+      {
+        "Type": "",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 404
+      }
+    ],
+    "EndpointName": "RedNote.MediaService.Features.Media.GetMediaBatch.GetMediaBatchEndpoint.Post",
+    "Description": "POST_media_batch",
+    "Summary": "POST_media_batch"
+  },
+  {
+    "ContainingType": "RedNote.MediaService.Features.Media.UploadImage.UploadImageEndpoint",
+    "Method": "Post",
+    "RelativePath": "api/v1/media/images",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": [
+      {
+        "Type": "Microsoft.AspNetCore.Http.IResult",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 200
+      },
+      {
+        "Type": "",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 404
+      }
+    ],
+    "EndpointName": "RedNote.MediaService.Features.Media.UploadImage.UploadImageEndpoint.Post",
+    "Description": "POST_media_images",
+    "Summary": "POST_media_images"
+  }
+]

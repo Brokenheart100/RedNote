@@ -1,0 +1,79 @@
+{
+  "Version": 1,
+  "WorkspaceRootPath": "D:\\Code\\CSharp\\RedNote\\",
+  "Documents": [
+    {
+      "AbsoluteMoniker": "D:0:0:{51330197-8BA3-4EC6-90CF-30F23419F703}|RedNote.UserService\\RedNote.UserService.csproj|d:\\code\\csharp\\rednote\\rednote.userservice\\rednote.userservice.csproj||{FA3CD31E-987B-443A-9B81-186104E8DAC1}|",
+      "RelativeMoniker": "D:0:0:{51330197-8BA3-4EC6-90CF-30F23419F703}|RedNote.UserService\\RedNote.UserService.csproj|solutionrelative:rednote.userservice\\rednote.userservice.csproj||{FA3CD31E-987B-443A-9B81-186104E8DAC1}|"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{7E8B6FB4-DE94-41A4-9974-814617E5E0E6}|RedNote.Authentication\\RedNote.Authentication.csproj|d:\\code\\csharp\\rednote\\rednote.authentication\\jwtauthenticationextensions.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{7E8B6FB4-DE94-41A4-9974-814617E5E0E6}|RedNote.Authentication\\RedNote.Authentication.csproj|solutionrelative:rednote.authentication\\jwtauthenticationextensions.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{7E8B6FB4-DE94-41A4-9974-814617E5E0E6}|RedNote.Authentication\\RedNote.Authentication.csproj|d:\\code\\csharp\\rednote\\rednote.authentication\\jwtauthenticationoptions.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{7E8B6FB4-DE94-41A4-9974-814617E5E0E6}|RedNote.Authentication\\RedNote.Authentication.csproj|solutionrelative:rednote.authentication\\jwtauthenticationoptions.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    }
+  ],
+  "DocumentGroupContainers": [
+    {
+      "Orientation": 0,
+      "VerticalTabListWidth": 256,
+      "DocumentGroups": [
+        {
+          "DockedWidth": 346,
+          "SelectedChildIndex": 2,
+          "Children": [
+            {
+              "$type": "Bookmark",
+              "Name": "ST:0:0:{3ae79031-e1bc-11d0-8f78-00a0c9110057}"
+            },
+            {
+              "$type": "Bookmark",
+              "Name": "ST:128:0:{75188d03-9892-4ae2-abf1-207126247ce5}"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "RedNote.UserService",
+              "DocumentMoniker": "D:\\Code\\CSharp\\RedNote\\RedNote.UserService\\RedNote.UserService.csproj",
+              "RelativeDocumentMoniker": "RedNote.UserService\\RedNote.UserService.csproj",
+              "ToolTip": "D:\\Code\\CSharp\\RedNote\\RedNote.UserService\\RedNote.UserService.csproj",
+              "RelativeToolTip": "RedNote.UserService\\RedNote.UserService.csproj",
+              "ViewState": "AgIAAAYAAAAAAAAAAAAAABsAAABFAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000758|",
+              "WhenOpened": "2026-10-01T04:18:38.79Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "JwtAuthenticationExtensions.cs",
+              "DocumentMoniker": "D:\\Code\\CSharp\\RedNote\\RedNote.Authentication\\JwtAuthenticationExtensions.cs",
+              "RelativeDocumentMoniker": "RedNote.Authentication\\JwtAuthenticationExtensions.cs",
+              "ToolTip": "D:\\Code\\CSharp\\RedNote\\RedNote.Authentication\\JwtAuthenticationExtensions.cs",
+              "RelativeToolTip": "RedNote.Authentication\\JwtAuthenticationExtensions.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAA4AAAAFAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-10-01T04:08:14.218Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 2,
+              "Title": "JwtAuthenticationOptions.cs",
+              "DocumentMoniker": "D:\\Code\\CSharp\\RedNote\\RedNote.Authentication\\JwtAuthenticationOptions.cs",
+              "RelativeDocumentMoniker": "RedNote.Authentication\\JwtAuthenticationOptions.cs",
+              "ToolTip": "D:\\Code\\CSharp\\RedNote\\RedNote.Authentication\\JwtAuthenticationOptions.cs",
+              "RelativeToolTip": "RedNote.Authentication\\JwtAuthenticationOptions.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAA0AAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-10-01T03:58:01.613Z",
+              "EditorCaption": ""
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

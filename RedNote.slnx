@@ -1,0 +1,12 @@
+<Solution>
+  <Project Path="RedNote.AppHost/RedNote.AppHost.csproj" />
+  <Project Path="RedNote.Authentication/RedNote.Authentication.csproj" Id="7e8b6fb4-de94-41a4-9974-814617e5e0e6" />
+  <Project Path="RedNote.ContentService/RedNote.ContentService.csproj" Id="d21b9632-d113-43d2-b63f-1c8b16be571b" />
+  <Project Path="RedNote.Contracts/RedNote.Contracts.csproj" Id="104a65d7-888e-4249-9b5b-1d7fdb1c5d32" />
+  <Project Path="RedNote.Gateway/RedNote.Gateway.csproj" Id="1fb1d13e-cf50-4e0d-8e49-a02d17f131f2" />
+  <Project Path="RedNote.IdentityService/RedNote.IdentityService.csproj" Id="304d7791-107c-4607-9d93-279539780078" />
+  <Project Path="RedNote.MediaService/RedNote.MediaService.csproj" Id="34688e98-6375-4801-8ba4-91a45c268d32" />
+  <Project Path="RedNote.SearchService/RedNote.SearchService.csproj" Id="42705045-9b04-4ab1-9301-f4d71f5b3d96" />
+  <Project Path="RedNote.UserService/RedNote.UserService.csproj" Id="51330197-8ba3-4ec6-90cf-30f23419f703" />
+  <Project Path="ServiceDefaults/ServiceDefaults.csproj" Id="a970b880-3bc1-45a9-a43c-ac35e120cd8a" />
+</Solution>

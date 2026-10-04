@@ -1,0 +1,6 @@
+@RedNote.IdentityService_HostAddress = http://localhost:5001
+
+GET {{RedNote.IdentityService_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

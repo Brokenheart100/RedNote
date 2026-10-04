@@ -1,0 +1,475 @@
+name: "rednote"
+services:
+  compose-dashboard:
+    image: "mcr.microsoft.com/dotnet/nightly/aspire-dashboard:13.5"
+    ports:
+      - "18888"
+    expose:
+      - "18889"
+      - "18890"
+    networks:
+      - "aspire"
+    restart: "always"
+  rabbitmq:
+    image: "docker.io/library/rabbitmq:4.3"
+    environment:
+      RABBITMQ_DEFAULT_USER: "guest"
+      RABBITMQ_DEFAULT_PASS: "${RABBITMQ_PASSWORD}"
+    expose:
+      - "5672"
+    networks:
+      - "aspire"
+  redis:
+    image: "docker.io/library/redis:8.6"
+    command:
+      - "-c"
+      - "redis-server --requirepass $$REDIS_PASSWORD --save 60 1"
+    entrypoint:
+      - "/bin/sh"
+    environment:
+      REDIS_PASSWORD: "${REDIS_PASSWORD}"
+    expose:
+      - "6379"
+    volumes:
+      - type: "volume"
+        target: "/data"
+        source: "rednote.apphost-5d474c088f-redis-data"
+        read_only: false
+    networks:
+      - "aspire"
+  postgres:
+    image: "docker.io/library/postgres:18.3"
+    environment:
+      POSTGRES_HOST_AUTH_METHOD: "scram-sha-256"
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256 --auth-local=scram-sha-256"
+      POSTGRES_USER: "postgres"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
+    expose:
+      - "5432"
+    volumes:
+      - type: "volume"
+        target: "/var/lib/postgresql"
+        source: "postgres-data"
+        read_only: false
+    networks:
+      - "aspire"
+  minio:
+    image: "minio/minio:latest"
+    command:
+      - "server"
+      - "/data"
+      - "--console-address"
+      - ":9001"
+    environment:
+      MINIO_ROOT_USER: "${MINIO_ACCESS_KEY}"
+      MINIO_ROOT_PASSWORD: "${MINIO_SECRET_KEY}"
+    expose:
+      - "9000"
+      - "9001"
+    volumes:
+      - type: "volume"
+        target: "/data"
+        source: "minio-data"
+        read_only: false
+    networks:
+      - "aspire"
+  identity-service:
+    image: "${IDENTITY_SERVICE_IMAGE}"
+    environment:
+      OTEL_DOTNET_EXPERIMENTAL_OTLP_RETRY: "in_memory"
+      ASPNETCORE_FORWARDEDHEADERS_ENABLED: "true"
+      HTTP_PORTS: "${IDENTITY_SERVICE_PORT}"
+      Security__RequireHttps: "false"
+      ConnectionStrings__identitydb: "Host=postgres;Port=5432;Username=postgres;Password=${POSTGRES_PASSWORD};Database=identitydb"
+      IDENTITYDB_HOST: "postgres"
+      IDENTITYDB_PORT: "5432"
+      IDENTITYDB_USERNAME: "postgres"
+      IDENTITYDB_PASSWORD: "${POSTGRES_PASSWORD}"
+      IDENTITYDB_URI: "postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/identitydb"
+      IDENTITYDB_JDBCCONNECTIONSTRING: "jdbc:postgresql://postgres:5432/identitydb"
+      IDENTITYDB_DATABASENAME: "identitydb"
+      OpenIddict__PublicBaseUrl: "${GATEWAY_PUBLIC_URL}"
+      OpenIddict__Clients__RedNoteWeb__LoginUri: "${FRONTEND_PUBLIC_URL}/login"
+      OpenIddict__Clients__RedNoteWeb__RedirectUri: "${FRONTEND_PUBLIC_URL}/auth/rednote"
+      OpenIddict__Clients__RedNoteWeb__PostLogoutRedirectUri: "${FRONTEND_PUBLIC_URL}"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://compose-dashboard:18889"
+      OTEL_EXPORTER_OTLP_PROTOCOL: "grpc"
+      OTEL_SERVICE_NAME: "identity-service"
+    expose:
+      - "${IDENTITY_SERVICE_PORT}"
+    depends_on:
+      postgres:
+        condition: "service_started"
+      identity-migrations:
+        condition: "service_completed_successfully"
+    networks:
+      - "aspire"
+  user-service:
+    image: "${USER_SERVICE_IMAGE}"
+    environment:
+      OTEL_DOTNET_EXPERIMENTAL_OTLP_RETRY: "in_memory"
+      ASPNETCORE_FORWARDEDHEADERS_ENABLED: "true"
+      HTTP_PORTS: "${USER_SERVICE_PORT}"
+      ConnectionStrings__userdb: "Host=postgres;Port=5432;Username=postgres;Password=${POSTGRES_PASSWORD};Database=userdb"
+      USERDB_HOST: "postgres"
+      USERDB_PORT: "5432"
+      USERDB_USERNAME: "postgres"
+      USERDB_PASSWORD: "${POSTGRES_PASSWORD}"
+      USERDB_URI: "postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/userdb"
+      USERDB_JDBCCONNECTIONSTRING: "jdbc:postgresql://postgres:5432/userdb"
+      USERDB_DATABASENAME: "userdb"
+      IDENTITY_SERVICE_HTTP: "http://identity-service:${IDENTITY_SERVICE_PORT}"
+      services__identity-service__http__0: "http://identity-service:${IDENTITY_SERVICE_PORT}"
+      IDENTITY_SERVICE_HTTPS: "https://identity-service:${IDENTITY_SERVICE_PORT}"
+      ConnectionStrings__rabbitmq: "amqp://guest:${RABBITMQ_PASSWORD}@rabbitmq:5672"
+      RABBITMQ_HOST: "rabbitmq"
+      RABBITMQ_PORT: "5672"
+      RABBITMQ_USERNAME: "guest"
+      RABBITMQ_PASSWORD: "${RABBITMQ_PASSWORD}"
+      RABBITMQ_URI: "amqp://guest:${RABBITMQ_PASSWORD}@rabbitmq:5672"
+      Jwt__Issuer: "${GATEWAY_PUBLIC_URL}/"
+      Jwt__Audience: "rednote-api"
+      Jwt__MetadataAddress: "http://gateway:8080/.well-known/openid-configuration"
+      Jwt__RequireHttpsMetadata: "false"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://compose-dashboard:18889"
+      OTEL_EXPORTER_OTLP_PROTOCOL: "grpc"
+      OTEL_SERVICE_NAME: "user-service"
+    expose:
+      - "${USER_SERVICE_PORT}"
+    depends_on:
+      postgres:
+        condition: "service_started"
+      identity-service:
+        condition: "service_started"
+      rabbitmq:
+        condition: "service_started"
+      user-migrations:
+        condition: "service_completed_successfully"
+    networks:
+      - "aspire"
+  media-service:
+    image: "${MEDIA_SERVICE_IMAGE}"
+    environment:
+      OTEL_DOTNET_EXPERIMENTAL_OTLP_RETRY: "in_memory"
+      ASPNETCORE_FORWARDEDHEADERS_ENABLED: "true"
+      HTTP_PORTS: "${MEDIA_SERVICE_PORT}"
+      ConnectionStrings__mediadb: "Host=postgres;Port=5432;Username=postgres;Password=${POSTGRES_PASSWORD};Database=mediadb"
+      MEDIADB_HOST: "postgres"
+      MEDIADB_PORT: "5432"
+      MEDIADB_USERNAME: "postgres"
+      MEDIADB_PASSWORD: "${POSTGRES_PASSWORD}"
+      MEDIADB_URI: "postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/mediadb"
+      MEDIADB_JDBCCONNECTIONSTRING: "jdbc:postgresql://postgres:5432/mediadb"
+      MEDIADB_DATABASENAME: "mediadb"
+      IDENTITY_SERVICE_HTTP: "http://identity-service:${IDENTITY_SERVICE_PORT}"
+      services__identity-service__http__0: "http://identity-service:${IDENTITY_SERVICE_PORT}"
+      IDENTITY_SERVICE_HTTPS: "https://identity-service:${IDENTITY_SERVICE_PORT}"
+      S3__ServiceUrl: "http://minio:9000"
+      S3__AccessKey: "${MINIO_ACCESS_KEY}"
+      S3__SecretKey: "${MINIO_SECRET_KEY}"
+      S3__BucketName: "rednote-media"
+      Jwt__Issuer: "${GATEWAY_PUBLIC_URL}/"
+      Jwt__Audience: "rednote-api"
+      Jwt__MetadataAddress: "http://gateway:8080/.well-known/openid-configuration"
+      Jwt__RequireHttpsMetadata: "false"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://compose-dashboard:18889"
+      OTEL_EXPORTER_OTLP_PROTOCOL: "grpc"
+      OTEL_SERVICE_NAME: "media-service"
+    expose:
+      - "${MEDIA_SERVICE_PORT}"
+    depends_on:
+      postgres:
+        condition: "service_started"
+      identity-service:
+        condition: "service_started"
+      minio:
+        condition: "service_started"
+      media-migrations:
+        condition: "service_completed_successfully"
+    networks:
+      - "aspire"
+  content-service:
+    image: "${CONTENT_SERVICE_IMAGE}"
+    environment:
+      OTEL_DOTNET_EXPERIMENTAL_OTLP_RETRY: "in_memory"
+      ASPNETCORE_FORWARDEDHEADERS_ENABLED: "true"
+      HTTP_PORTS: "${CONTENT_SERVICE_PORT}"
+      ConnectionStrings__contentdb: "Host=postgres;Port=5432;Username=postgres;Password=${POSTGRES_PASSWORD};Database=contentdb"
+      CONTENTDB_HOST: "postgres"
+      CONTENTDB_PORT: "5432"
+      CONTENTDB_USERNAME: "postgres"
+      CONTENTDB_PASSWORD: "${POSTGRES_PASSWORD}"
+      CONTENTDB_URI: "postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/contentdb"
+      CONTENTDB_JDBCCONNECTIONSTRING: "jdbc:postgresql://postgres:5432/contentdb"
+      CONTENTDB_DATABASENAME: "contentdb"
+      IDENTITY_SERVICE_HTTP: "http://identity-service:${IDENTITY_SERVICE_PORT}"
+      services__identity-service__http__0: "http://identity-service:${IDENTITY_SERVICE_PORT}"
+      IDENTITY_SERVICE_HTTPS: "https://identity-service:${IDENTITY_SERVICE_PORT}"
+      MEDIA_SERVICE_HTTP: "http://media-service:${MEDIA_SERVICE_PORT}"
+      services__media-service__http__0: "http://media-service:${MEDIA_SERVICE_PORT}"
+      MEDIA_SERVICE_HTTPS: "https://media-service:${MEDIA_SERVICE_PORT}"
+      USER_SERVICE_HTTP: "http://user-service:${USER_SERVICE_PORT}"
+      services__user-service__http__0: "http://user-service:${USER_SERVICE_PORT}"
+      USER_SERVICE_HTTPS: "https://user-service:${USER_SERVICE_PORT}"
+      ConnectionStrings__rabbitmq: "amqp://guest:${RABBITMQ_PASSWORD}@rabbitmq:5672"
+      RABBITMQ_HOST: "rabbitmq"
+      RABBITMQ_PORT: "5672"
+      RABBITMQ_USERNAME: "guest"
+      RABBITMQ_PASSWORD: "${RABBITMQ_PASSWORD}"
+      RABBITMQ_URI: "amqp://guest:${RABBITMQ_PASSWORD}@rabbitmq:5672"
+      Jwt__Issuer: "${GATEWAY_PUBLIC_URL}/"
+      Jwt__Audience: "rednote-api"
+      Jwt__MetadataAddress: "http://gateway:8080/.well-known/openid-configuration"
+      Jwt__RequireHttpsMetadata: "false"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://compose-dashboard:18889"
+      OTEL_EXPORTER_OTLP_PROTOCOL: "grpc"
+      OTEL_SERVICE_NAME: "content-service"
+    expose:
+      - "${CONTENT_SERVICE_PORT}"
+    depends_on:
+      rabbitmq:
+        condition: "service_started"
+      postgres:
+        condition: "service_started"
+      identity-service:
+        condition: "service_started"
+      user-service:
+        condition: "service_started"
+      media-service:
+        condition: "service_started"
+      content-migrations:
+        condition: "service_completed_successfully"
+    networks:
+      - "aspire"
+  opensearch:
+    image: "opensearchproject/opensearch:3.8.0"
+    environment:
+      discovery.type: "single-node"
+      DISABLE_SECURITY_PLUGIN: "true"
+      OPENSEARCH_JAVA_OPTS: "-Xms512m -Xmx512m"
+    expose:
+      - "9200"
+    volumes:
+      - type: "volume"
+        target: "/usr/share/opensearch/data"
+        source: "opensearch-data"
+        read_only: false
+    networks:
+      - "aspire"
+  search-service:
+    image: "${SEARCH_SERVICE_IMAGE}"
+    environment:
+      OTEL_DOTNET_EXPERIMENTAL_OTLP_RETRY: "in_memory"
+      ASPNETCORE_FORWARDEDHEADERS_ENABLED: "true"
+      HTTP_PORTS: "${SEARCH_SERVICE_PORT}"
+      CONTENT_SERVICE_HTTP: "http://content-service:${CONTENT_SERVICE_PORT}"
+      services__content-service__http__0: "http://content-service:${CONTENT_SERVICE_PORT}"
+      CONTENT_SERVICE_HTTPS: "https://content-service:${CONTENT_SERVICE_PORT}"
+      ConnectionStrings__searchdb: "Host=postgres;Port=5432;Username=postgres;Password=${POSTGRES_PASSWORD};Database=searchdb"
+      SEARCHDB_HOST: "postgres"
+      SEARCHDB_PORT: "5432"
+      SEARCHDB_USERNAME: "postgres"
+      SEARCHDB_PASSWORD: "${POSTGRES_PASSWORD}"
+      SEARCHDB_URI: "postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/searchdb"
+      SEARCHDB_JDBCCONNECTIONSTRING: "jdbc:postgresql://postgres:5432/searchdb"
+      SEARCHDB_DATABASENAME: "searchdb"
+      OPENSEARCH_HTTP: "http://opensearch:9200"
+      services__opensearch__http__0: "http://opensearch:9200"
+      ConnectionStrings__rabbitmq: "amqp://guest:${RABBITMQ_PASSWORD}@rabbitmq:5672"
+      RABBITMQ_HOST: "rabbitmq"
+      RABBITMQ_PORT: "5672"
+      RABBITMQ_USERNAME: "guest"
+      RABBITMQ_PASSWORD: "${RABBITMQ_PASSWORD}"
+      RABBITMQ_URI: "amqp://guest:${RABBITMQ_PASSWORD}@rabbitmq:5672"
+      OpenSearch__Url: "http://opensearch:9200"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://compose-dashboard:18889"
+      OTEL_EXPORTER_OTLP_PROTOCOL: "grpc"
+      OTEL_SERVICE_NAME: "search-service"
+    expose:
+      - "${SEARCH_SERVICE_PORT}"
+    depends_on:
+      rabbitmq:
+        condition: "service_started"
+      content-service:
+        condition: "service_started"
+      opensearch:
+        condition: "service_started"
+      search-migrations:
+        condition: "service_completed_successfully"
+    networks:
+      - "aspire"
+  gateway:
+    image: "${GATEWAY_IMAGE}"
+    environment:
+      OTEL_DOTNET_EXPERIMENTAL_OTLP_RETRY: "in_memory"
+      ASPNETCORE_FORWARDEDHEADERS_ENABLED: "true"
+      HTTP_PORTS: "8080"
+      IDENTITY_SERVICE_HTTP: "http://identity-service:${IDENTITY_SERVICE_PORT}"
+      services__identity-service__http__0: "http://identity-service:${IDENTITY_SERVICE_PORT}"
+      IDENTITY_SERVICE_HTTPS: "https://identity-service:${IDENTITY_SERVICE_PORT}"
+      USER_SERVICE_HTTP: "http://user-service:${USER_SERVICE_PORT}"
+      services__user-service__http__0: "http://user-service:${USER_SERVICE_PORT}"
+      USER_SERVICE_HTTPS: "https://user-service:${USER_SERVICE_PORT}"
+      CONTENT_SERVICE_HTTP: "http://content-service:${CONTENT_SERVICE_PORT}"
+      services__content-service__http__0: "http://content-service:${CONTENT_SERVICE_PORT}"
+      CONTENT_SERVICE_HTTPS: "https://content-service:${CONTENT_SERVICE_PORT}"
+      MEDIA_SERVICE_HTTP: "http://media-service:${MEDIA_SERVICE_PORT}"
+      services__media-service__http__0: "http://media-service:${MEDIA_SERVICE_PORT}"
+      MEDIA_SERVICE_HTTPS: "https://media-service:${MEDIA_SERVICE_PORT}"
+      SEARCH_SERVICE_HTTP: "http://search-service:${SEARCH_SERVICE_PORT}"
+      services__search-service__http__0: "http://search-service:${SEARCH_SERVICE_PORT}"
+      SEARCH_SERVICE_HTTPS: "https://search-service:${SEARCH_SERVICE_PORT}"
+      Cors__AllowedOrigins__0: "${FRONTEND_PUBLIC_URL}"
+      Jwt__Issuer: "${GATEWAY_PUBLIC_URL}/"
+      Jwt__Audience: "rednote-api"
+      Jwt__MetadataAddress: "http://gateway:8080/.well-known/openid-configuration"
+      Jwt__RequireHttpsMetadata: "false"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://compose-dashboard:18889"
+      OTEL_EXPORTER_OTLP_PROTOCOL: "grpc"
+      OTEL_SERVICE_NAME: "gateway"
+    ports:
+      - "8080:8080"
+      - "${GATEWAY_PORT}"
+    depends_on:
+      identity-service:
+        condition: "service_started"
+      user-service:
+        condition: "service_started"
+      content-service:
+        condition: "service_started"
+      media-service:
+        condition: "service_started"
+      search-service:
+        condition: "service_started"
+    networks:
+      - "aspire"
+  frontend:
+    image: "${FRONTEND_IMAGE}"
+    environment:
+      NODE_ENV: "production"
+      PORT: "3000"
+      HOST: "0.0.0.0"
+      HOSTNAME: "0.0.0.0"
+      GATEWAY_HTTP: "http://gateway:8080"
+      services__gateway__http__0: "http://gateway:8080"
+      GATEWAY_HTTPS: "https://gateway:${GATEWAY_PORT}"
+      ConnectionStrings__redis: "redis:6379,password=${REDIS_PASSWORD}"
+      REDIS_HOST: "redis"
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: "${REDIS_PASSWORD}"
+      REDIS_URI: "redis://:${REDIS_PASSWORD}@redis:6379"
+      NUXT_GATEWAY_BASE_URL: "http://gateway:8080"
+      NUXT_PUBLIC_API_BASE_URL: "${GATEWAY_PUBLIC_URL}"
+      NUXT_OAUTH_OIDC_CLIENT_ID: "rednote-web"
+      NUXT_OAUTH_OIDC_OPENID_CONFIG: "http://gateway:8080/.well-known/openid-configuration"
+      NUXT_OAUTH_OIDC_REDIRECT_URL: "${FRONTEND_PUBLIC_URL}/auth/rednote"
+      NUXT_SESSION_PASSWORD: "${NUXT_SESSION_PASSWORD}"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://compose-dashboard:18889"
+      OTEL_EXPORTER_OTLP_PROTOCOL: "grpc"
+      OTEL_SERVICE_NAME: "frontend"
+    ports:
+      - "3000:3000"
+    depends_on:
+      gateway:
+        condition: "service_started"
+      redis:
+        condition: "service_started"
+    networks:
+      - "aspire"
+  identity-migrations:
+    image: "${IDENTITY_MIGRATIONS_IMAGE}"
+    environment:
+      ConnectionStrings__identitydb: "Host=postgres;Port=5432;Username=postgres;Password=${POSTGRES_PASSWORD};Database=identitydb"
+      IDENTITYDB_HOST: "postgres"
+      IDENTITYDB_PORT: "5432"
+      IDENTITYDB_USERNAME: "postgres"
+      IDENTITYDB_PASSWORD: "${POSTGRES_PASSWORD}"
+      IDENTITYDB_URI: "postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/identitydb"
+      IDENTITYDB_JDBCCONNECTIONSTRING: "jdbc:postgresql://postgres:5432/identitydb"
+      IDENTITYDB_DATABASENAME: "identitydb"
+    depends_on:
+      postgres:
+        condition: "service_started"
+    networks:
+      - "aspire"
+    restart: "no"
+  user-migrations:
+    image: "${USER_MIGRATIONS_IMAGE}"
+    environment:
+      ConnectionStrings__userdb: "Host=postgres;Port=5432;Username=postgres;Password=${POSTGRES_PASSWORD};Database=userdb"
+      USERDB_HOST: "postgres"
+      USERDB_PORT: "5432"
+      USERDB_USERNAME: "postgres"
+      USERDB_PASSWORD: "${POSTGRES_PASSWORD}"
+      USERDB_URI: "postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/userdb"
+      USERDB_JDBCCONNECTIONSTRING: "jdbc:postgresql://postgres:5432/userdb"
+      USERDB_DATABASENAME: "userdb"
+    depends_on:
+      postgres:
+        condition: "service_started"
+    networks:
+      - "aspire"
+    restart: "no"
+  media-migrations:
+    image: "${MEDIA_MIGRATIONS_IMAGE}"
+    environment:
+      ConnectionStrings__mediadb: "Host=postgres;Port=5432;Username=postgres;Password=${POSTGRES_PASSWORD};Database=mediadb"
+      MEDIADB_HOST: "postgres"
+      MEDIADB_PORT: "5432"
+      MEDIADB_USERNAME: "postgres"
+      MEDIADB_PASSWORD: "${POSTGRES_PASSWORD}"
+      MEDIADB_URI: "postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/mediadb"
+      MEDIADB_JDBCCONNECTIONSTRING: "jdbc:postgresql://postgres:5432/mediadb"
+      MEDIADB_DATABASENAME: "mediadb"
+    depends_on:
+      postgres:
+        condition: "service_started"
+    networks:
+      - "aspire"
+    restart: "no"
+  content-migrations:
+    image: "${CONTENT_MIGRATIONS_IMAGE}"
+    environment:
+      ConnectionStrings__contentdb: "Host=postgres;Port=5432;Username=postgres;Password=${POSTGRES_PASSWORD};Database=contentdb"
+      CONTENTDB_HOST: "postgres"
+      CONTENTDB_PORT: "5432"
+      CONTENTDB_USERNAME: "postgres"
+      CONTENTDB_PASSWORD: "${POSTGRES_PASSWORD}"
+      CONTENTDB_URI: "postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/contentdb"
+      CONTENTDB_JDBCCONNECTIONSTRING: "jdbc:postgresql://postgres:5432/contentdb"
+      CONTENTDB_DATABASENAME: "contentdb"
+    depends_on:
+      postgres:
+        condition: "service_started"
+    networks:
+      - "aspire"
+    restart: "no"
+  search-migrations:
+    image: "${SEARCH_MIGRATIONS_IMAGE}"
+    environment:
+      ConnectionStrings__searchdb: "Host=postgres;Port=5432;Username=postgres;Password=${POSTGRES_PASSWORD};Database=searchdb"
+      SEARCHDB_HOST: "postgres"
+      SEARCHDB_PORT: "5432"
+      SEARCHDB_USERNAME: "postgres"
+      SEARCHDB_PASSWORD: "${POSTGRES_PASSWORD}"
+      SEARCHDB_URI: "postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/searchdb"
+      SEARCHDB_JDBCCONNECTIONSTRING: "jdbc:postgresql://postgres:5432/searchdb"
+      SEARCHDB_DATABASENAME: "searchdb"
+    depends_on:
+      postgres:
+        condition: "service_started"
+    networks:
+      - "aspire"
+    restart: "no"
+networks:
+  aspire:
+    driver: "bridge"
+volumes:
+  rednote.apphost-5d474c088f-redis-data:
+    driver: "local"
+  postgres-data:
+    driver: "local"
+  minio-data:
+    driver: "local"
+  opensearch-data:
+    driver: "local"

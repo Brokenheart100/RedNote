@@ -1,0 +1,282 @@
+[
+  {
+    "ContainingType": "RedNote.UserService.Features.Users.GetUser.GetUserEndpoint",
+    "Method": "Get",
+    "RelativePath": "api/v1/users/{userId:guid}",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "userId",
+        "Type": "System.Guid",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "Microsoft.AspNetCore.Http.IResult",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 200
+      },
+      {
+        "Type": "",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 404
+      }
+    ],
+    "EndpointName": "RedNote.UserService.Features.Users.GetUser.GetUserEndpoint.Get",
+    "Description": "GET_users_userId",
+    "Summary": "GET_users_userId"
+  },
+  {
+    "ContainingType": "RedNote.UserService.Features.Users.Follow.FollowEndpoint",
+    "Method": "Follow",
+    "RelativePath": "api/v1/users/{userId:guid}/follow",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "userId",
+        "Type": "System.Guid",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "Microsoft.AspNetCore.Http.IResult",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 200
+      },
+      {
+        "Type": "",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 404
+      }
+    ],
+    "EndpointName": "RedNote.UserService.Features.Users.Follow.FollowEndpoint.Follow",
+    "Description": "POST_users_userId_follow",
+    "Summary": "POST_users_userId_follow"
+  },
+  {
+    "ContainingType": "RedNote.UserService.Features.Users.Follow.FollowEndpoint",
+    "Method": "Unfollow",
+    "RelativePath": "api/v1/users/{userId:guid}/follow",
+    "HttpMethod": "DELETE",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "userId",
+        "Type": "System.Guid",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "Microsoft.AspNetCore.Http.IResult",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 200
+      },
+      {
+        "Type": "",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 404
+      }
+    ],
+    "EndpointName": "RedNote.UserService.Features.Users.Follow.FollowEndpoint.Unfollow",
+    "Description": "DELETE_api_v1_users_userId_follow",
+    "Summary": "DELETE_api_v1_users_userId_follow"
+  },
+  {
+    "ContainingType": "RedNote.UserService.Features.Users.FollowList.UserFollowListEndpoint",
+    "Method": "GetFollowers",
+    "RelativePath": "api/v1/users/{userId:guid}/followers",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "userId",
+        "Type": "System.Guid",
+        "IsRequired": true
+      },
+      {
+        "Name": "page",
+        "Type": "System.Int32",
+        "IsRequired": false
+      },
+      {
+        "Name": "pageSize",
+        "Type": "System.Int32",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "Microsoft.AspNetCore.Http.IResult",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 200
+      },
+      {
+        "Type": "",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 404
+      }
+    ],
+    "EndpointName": "RedNote.UserService.Features.Users.FollowList.UserFollowListEndpoint.GetFollowers",
+    "Description": "GET_users_userId_followers",
+    "Summary": "GET_users_userId_followers"
+  },
+  {
+    "ContainingType": "RedNote.UserService.Features.Users.FollowList.UserFollowListEndpoint",
+    "Method": "GetFollowing",
+    "RelativePath": "api/v1/users/{userId:guid}/following",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "userId",
+        "Type": "System.Guid",
+        "IsRequired": true
+      },
+      {
+        "Name": "page",
+        "Type": "System.Int32",
+        "IsRequired": false
+      },
+      {
+        "Name": "pageSize",
+        "Type": "System.Int32",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "Microsoft.AspNetCore.Http.IResult",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 200
+      },
+      {
+        "Type": "",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 404
+      }
+    ],
+    "EndpointName": "RedNote.UserService.Features.Users.FollowList.UserFollowListEndpoint.GetFollowing",
+    "Description": "GET_api_v1_users_userId_following",
+    "Summary": "GET_api_v1_users_userId_following"
+  },
+  {
+    "ContainingType": "RedNote.UserService.Features.Users.UpdateMe.UpdateMeEndpoint",
+    "Method": "Patch",
+    "RelativePath": "api/v1/users/me",
+    "HttpMethod": "PATCH",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "UpdateMeRequest",
+        "Type": "RedNote.UserService.Features.Users.UpdateMe.UpdateMeRequest",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "Microsoft.AspNetCore.Http.IResult",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 200
+      },
+      {
+        "Type": "",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 404
+      }
+    ],
+    "EndpointName": "RedNote.UserService.Features.Users.UpdateMe.UpdateMeEndpoint.Patch",
+    "Description": "PATCH_users_me",
+    "Summary": "PATCH_users_me"
+  },
+  {
+    "ContainingType": "RedNote.UserService.Features.Users.GetMe.GetMeEndpoint",
+    "Method": "Get",
+    "RelativePath": "api/v1/users/me",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": [
+      {
+        "Type": "RedNote.UserService.Features.Users.GetMe.GetMeResponse",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 200
+      },
+      {
+        "Type": "",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 404
+      }
+    ],
+    "EndpointName": "RedNote.UserService.Features.Users.GetMe.GetMeEndpoint.Get",
+    "Description": "GET_users_me",
+    "Summary": "GET_users_me"
+  },
+  {
+    "ContainingType": "RedNote.UserService.Features.Users.GetMyFollowingIds.GetMyFollowingIdsEndpoint",
+    "Method": "Get",
+    "RelativePath": "api/v1/users/me/following/ids",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": [
+      {
+        "Type": "Microsoft.AspNetCore.Http.IResult",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 200
+      },
+      {
+        "Type": "",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 404
+      }
+    ],
+    "EndpointName": "RedNote.UserService.Features.Users.GetMyFollowingIds.GetMyFollowingIdsEndpoint.Get",
+    "Description": "GET_users_me_following_ids",
+    "Summary": "GET_users_me_following_ids"
+  }
+]

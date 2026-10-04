@@ -1,0 +1,684 @@
+[
+  {
+    "ContainingType": "RedNote.ContentService.Features.Posts.GetUserPosts.GetUserPostsEndpoint",
+    "Method": "Get",
+    "RelativePath": "api/v1/posts",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "authorUserId",
+        "Type": "System.Guid",
+        "IsRequired": false
+      },
+      {
+        "Name": "page",
+        "Type": "System.Int32",
+        "IsRequired": false
+      },
+      {
+        "Name": "pageSize",
+        "Type": "System.Int32",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "Microsoft.AspNetCore.Http.IResult",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 200
+      },
+      {
+        "Type": "",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 404
+      }
+    ],
+    "EndpointName": "RedNote.ContentService.Features.Posts.GetUserPosts.GetUserPostsEndpoint.Get",
+    "Description": "GET_posts",
+    "Summary": "GET_posts"
+  },
+  {
+    "ContainingType": "RedNote.ContentService.Features.Posts.Create.CreatePostEndpoint",
+    "Method": "Post",
+    "RelativePath": "api/v1/posts",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "CreatePostRequest",
+        "Type": "RedNote.ContentService.Features.Posts.Common.CreatePostRequest",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "Microsoft.AspNetCore.Http.IResult",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 200
+      },
+      {
+        "Type": "",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 404
+      }
+    ],
+    "EndpointName": "RedNote.ContentService.Features.Posts.Create.CreatePostEndpoint.Post",
+    "Description": "POST_posts",
+    "Summary": "POST_posts"
+  },
+  {
+    "ContainingType": "RedNote.ContentService.Features.Posts.Update.UpdatePostEndpoint",
+    "Method": "Patch",
+    "RelativePath": "api/v1/posts/{postId:guid}",
+    "HttpMethod": "PATCH",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "postId",
+        "Type": "System.Guid",
+        "IsRequired": true
+      },
+      {
+        "Name": "UpdatePostRequest",
+        "Type": "RedNote.ContentService.Features.Posts.Update.UpdatePostRequest",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "Microsoft.AspNetCore.Http.IResult",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 200
+      },
+      {
+        "Type": "",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 404
+      }
+    ],
+    "EndpointName": "RedNote.ContentService.Features.Posts.Update.UpdatePostEndpoint.Patch",
+    "Description": "PATCH_api_v1_posts_postId",
+    "Summary": "PATCH_api_v1_posts_postId"
+  },
+  {
+    "ContainingType": "RedNote.ContentService.Features.Posts.GetPost.GetPostEndpoint",
+    "Method": "Get",
+    "RelativePath": "api/v1/posts/{postId:guid}",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "postId",
+        "Type": "System.Guid",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "Microsoft.AspNetCore.Http.IResult",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 200
+      },
+      {
+        "Type": "",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 404
+      }
+    ],
+    "EndpointName": "RedNote.ContentService.Features.Posts.GetPost.GetPostEndpoint.Get",
+    "Description": "GET_posts_postId",
+    "Summary": "GET_posts_postId"
+  },
+  {
+    "ContainingType": "RedNote.ContentService.Features.Posts.Delete.DeletePostEndpoint",
+    "Method": "Delete",
+    "RelativePath": "api/v1/posts/{postId:guid}",
+    "HttpMethod": "DELETE",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "postId",
+        "Type": "System.Guid",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "Microsoft.AspNetCore.Http.IResult",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 200
+      },
+      {
+        "Type": "",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 404
+      }
+    ],
+    "EndpointName": "RedNote.ContentService.Features.Posts.Delete.DeletePostEndpoint.Delete",
+    "Description": "DELETE_posts_postId",
+    "Summary": "DELETE_posts_postId"
+  },
+  {
+    "ContainingType": "RedNote.ContentService.Features.Posts.GetComments.GetPostCommentsEndpoint",
+    "Method": "Get",
+    "RelativePath": "api/v1/posts/{postId:guid}/comments",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "postId",
+        "Type": "System.Guid",
+        "IsRequired": true
+      },
+      {
+        "Name": "page",
+        "Type": "System.Int32",
+        "IsRequired": false
+      },
+      {
+        "Name": "pageSize",
+        "Type": "System.Int32",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "Microsoft.AspNetCore.Http.IResult",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 200
+      },
+      {
+        "Type": "",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 404
+      }
+    ],
+    "EndpointName": "RedNote.ContentService.Features.Posts.GetComments.GetPostCommentsEndpoint.Get",
+    "Description": "GET_posts_postId_comments",
+    "Summary": "GET_posts_postId_comments"
+  },
+  {
+    "ContainingType": "RedNote.ContentService.Features.Posts.CreatePostComment.CreatePostCommentEndpoint",
+    "Method": "Post",
+    "RelativePath": "api/v1/posts/{postId:guid}/comments",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "postId",
+        "Type": "System.Guid",
+        "IsRequired": true
+      },
+      {
+        "Name": "CreatePostCommentRequest",
+        "Type": "RedNote.ContentService.Features.Posts.Common.CreatePostCommentRequest",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "Microsoft.AspNetCore.Http.IResult",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 200
+      },
+      {
+        "Type": "",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 404
+      }
+    ],
+    "EndpointName": "RedNote.ContentService.Features.Posts.CreatePostComment.CreatePostCommentEndpoint.Post",
+    "Description": "POST_posts_postId_comments",
+    "Summary": "POST_posts_postId_comments"
+  },
+  {
+    "ContainingType": "RedNote.ContentService.Features.Posts.DeleteComment.DeletePostCommentEndpoint",
+    "Method": "Delete",
+    "RelativePath": "api/v1/posts/{postId:guid}/comments/{commentId:guid}",
+    "HttpMethod": "DELETE",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "postId",
+        "Type": "System.Guid",
+        "IsRequired": true
+      },
+      {
+        "Name": "commentId",
+        "Type": "System.Guid",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "Microsoft.AspNetCore.Http.IResult",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 200
+      },
+      {
+        "Type": "",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 404
+      }
+    ],
+    "EndpointName": "RedNote.ContentService.Features.Posts.DeleteComment.DeletePostCommentEndpoint.Delete",
+    "Description": "DELETE_posts_postId_comments_commentId",
+    "Summary": "DELETE_posts_postId_comments_commentId"
+  },
+  {
+    "ContainingType": "RedNote.ContentService.Features.Posts.Unfavorite.UnfavoritePostEndpoint",
+    "Method": "Delete",
+    "RelativePath": "api/v1/posts/{postId:guid}/favorites",
+    "HttpMethod": "DELETE",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "postId",
+        "Type": "System.Guid",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "Microsoft.AspNetCore.Http.IResult",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 200
+      },
+      {
+        "Type": "",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 404
+      }
+    ],
+    "EndpointName": "RedNote.ContentService.Features.Posts.Unfavorite.UnfavoritePostEndpoint.Delete",
+    "Description": "DELETE_posts_postId_favorites",
+    "Summary": "DELETE_posts_postId_favorites"
+  },
+  {
+    "ContainingType": "RedNote.ContentService.Features.Posts.Favorite.FavoritePostEndpoint",
+    "Method": "Post",
+    "RelativePath": "api/v1/posts/{postId:guid}/favorites",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "postId",
+        "Type": "System.Guid",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "Microsoft.AspNetCore.Http.IResult",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 200
+      },
+      {
+        "Type": "",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 404
+      }
+    ],
+    "EndpointName": "RedNote.ContentService.Features.Posts.Favorite.FavoritePostEndpoint.Post",
+    "Description": "POST_api_v1_posts_postId_favorites",
+    "Summary": "POST_api_v1_posts_postId_favorites"
+  },
+  {
+    "ContainingType": "RedNote.ContentService.Features.Posts.Unlike.UnlikePostEndpoint",
+    "Method": "Delete",
+    "RelativePath": "api/v1/posts/{postId:guid}/likes",
+    "HttpMethod": "DELETE",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "postId",
+        "Type": "System.Guid",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "Microsoft.AspNetCore.Http.IResult",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 200
+      },
+      {
+        "Type": "",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 404
+      }
+    ],
+    "EndpointName": "RedNote.ContentService.Features.Posts.Unlike.UnlikePostEndpoint.Delete",
+    "Description": "DELETE_posts_postId_likes",
+    "Summary": "DELETE_posts_postId_likes"
+  },
+  {
+    "ContainingType": "RedNote.ContentService.Features.Posts.LikePost.LikePostEndpoint",
+    "Method": "Post",
+    "RelativePath": "api/v1/posts/{postId:guid}/likes",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "postId",
+        "Type": "System.Guid",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "Microsoft.AspNetCore.Http.IResult",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 200
+      },
+      {
+        "Type": "",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 404
+      }
+    ],
+    "EndpointName": "RedNote.ContentService.Features.Posts.LikePost.LikePostEndpoint.Post",
+    "Description": "POST_posts_postId_likes",
+    "Summary": "POST_posts_postId_likes"
+  },
+  {
+    "ContainingType": "RedNote.ContentService.Features.Posts.GetPostsByIds.GetPostsByIdsEndpoint",
+    "Method": "Post",
+    "RelativePath": "api/v1/posts/batch",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "GetPostsByIdsEndpoint.GetPostsByIdsRequest",
+        "Type": "RedNote.ContentService.Features.Posts.GetPostsByIds.GetPostsByIdsEndpoint\u002BGetPostsByIdsRequest",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "Microsoft.AspNetCore.Http.IResult",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 200
+      },
+      {
+        "Type": "",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 404
+      }
+    ],
+    "EndpointName": "RedNote.ContentService.Features.Posts.GetPostsByIds.GetPostsByIdsEndpoint.Post",
+    "Description": "POST_posts_batch",
+    "Summary": "POST_posts_batch"
+  },
+  {
+    "ContainingType": "RedNote.ContentService.Features.Posts.GetFavorites.GetMyFavoritePostsEndpoint",
+    "Method": "Get",
+    "RelativePath": "api/v1/posts/favorites",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "page",
+        "Type": "System.Int32",
+        "IsRequired": false
+      },
+      {
+        "Name": "pageSize",
+        "Type": "System.Int32",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "Microsoft.AspNetCore.Http.IResult",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 200
+      },
+      {
+        "Type": "",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 404
+      }
+    ],
+    "EndpointName": "RedNote.ContentService.Features.Posts.GetFavorites.GetMyFavoritePostsEndpoint.Get",
+    "Description": "GET_posts_favorites",
+    "Summary": "GET_posts_favorites"
+  },
+  {
+    "ContainingType": "RedNote.ContentService.Features.Posts.GetFeed.GetFeedEndpoint",
+    "Method": "Get",
+    "RelativePath": "api/v1/posts/feed",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "page",
+        "Type": "System.Int32",
+        "IsRequired": false
+      },
+      {
+        "Name": "pageSize",
+        "Type": "System.Int32",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "Microsoft.AspNetCore.Http.IResult",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 200
+      },
+      {
+        "Type": "",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 404
+      }
+    ],
+    "EndpointName": "RedNote.ContentService.Features.Posts.GetFeed.GetFeedEndpoint.Get",
+    "Description": "GET_posts_feed",
+    "Summary": "GET_posts_feed"
+  },
+  {
+    "ContainingType": "RedNote.ContentService.Features.Posts.GetLikedPosts.GetLikedPostsEndpoint",
+    "Method": "Get",
+    "RelativePath": "api/v1/posts/liked",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "page",
+        "Type": "System.Int32",
+        "IsRequired": false
+      },
+      {
+        "Name": "pageSize",
+        "Type": "System.Int32",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "Microsoft.AspNetCore.Http.IResult",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 200
+      },
+      {
+        "Type": "",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 404
+      }
+    ],
+    "EndpointName": "RedNote.ContentService.Features.Posts.GetLikedPosts.GetLikedPostsEndpoint.Get",
+    "Description": "GET_posts_liked",
+    "Summary": "GET_posts_liked"
+  },
+  {
+    "ContainingType": "RedNote.ContentService.Features.Posts.Search.GetPostSearchEndpoint",
+    "Method": "Get",
+    "RelativePath": "api/v1/posts/search",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "q",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "page",
+        "Type": "System.Int32",
+        "IsRequired": false
+      },
+      {
+        "Name": "pageSize",
+        "Type": "System.Int32",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "Microsoft.AspNetCore.Http.IResult",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 200
+      },
+      {
+        "Type": "",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 404
+      }
+    ],
+    "EndpointName": "RedNote.ContentService.Features.Posts.Search.GetPostSearchEndpoint.Get",
+    "Description": "GET_posts_search",
+    "Summary": "GET_posts_search"
+  },
+  {
+    "ContainingType": "RedNote.ContentService.Features.Posts.GetPostsByTag.GetPostsByTagEndpoint",
+    "Method": "Get",
+    "RelativePath": "api/v1/posts/tags/{tagName}",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "tagName",
+        "Type": "System.String",
+        "IsRequired": true
+      },
+      {
+        "Name": "page",
+        "Type": "System.Int32",
+        "IsRequired": false
+      },
+      {
+        "Name": "pageSize",
+        "Type": "System.Int32",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "Microsoft.AspNetCore.Http.IResult",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 200
+      },
+      {
+        "Type": "",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 404
+      }
+    ],
+    "EndpointName": "RedNote.ContentService.Features.Posts.GetPostsByTag.GetPostsByTagEndpoint.Get",
+    "Description": "GET_posts_tags_tagName",
+    "Summary": "GET_posts_tags_tagName"
+  }
+]

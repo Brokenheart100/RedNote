@@ -1,0 +1,5 @@
+{
+    "appHost": {
+        "path": "RedNote.AppHost\\RedNote.AppHost.csproj"
+    }
+}
