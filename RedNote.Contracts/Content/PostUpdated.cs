@@ -9,4 +9,5 @@ public sealed record PostUpdated(
     int LikeCount,
     int CommentCount,
     DateTimeOffset CreatedAtUtc,
-    DateTimeOffset UpdatedAtUtc);
+    DateTimeOffset UpdatedAtUtc,
+    long Revision = 0);

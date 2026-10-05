@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { parseLogin } from '~~/shared/schemas/requests'
+import { getRequestValidationMessage } from '~/utils/request-validation'
 import {
   consumeDevelopmentLogin,
   createAuthRoute,
@@ -50,6 +52,8 @@ function restoreDevelopmentLogin(): void {
 }
 
 function resolveLoginError(error: unknown): string {
+  const validationMessage = getRequestValidationMessage(error)
+  if (validationMessage) return validationMessage
   switch (getApiErrorStatus(error)) {
     case 400:
       return getApiErrorMessage(
@@ -78,28 +82,13 @@ async function handleSubmit(): Promise<void> {
 
   errorMessage.value = null
 
-  const normalizedEmail = email.value.trim()
-
-  if (!normalizedEmail) {
-    errorMessage.value = '请输入邮箱。'
-    return
-  }
-
-  if (!password.value) {
-    errorMessage.value = '请输入密码。'
-    return
-  }
-
   submitting.value = true
 
   try {
     await $fetch('/api/auth/login', {
       method: 'POST',
 
-      body: {
-        email: normalizedEmail,
-        password: password.value,
-      },
+      body: parseLogin({ email: email.value, password: password.value }),
     })
 
     if (import.meta.dev) {

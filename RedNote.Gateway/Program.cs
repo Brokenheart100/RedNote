@@ -9,7 +9,8 @@ builder.Services.AddGatewayServices(builder.Configuration);
 
 var app = builder.Build();
 
-if (app.Environment.IsDevelopment())
+if (app.Environment.IsDevelopment()
+    && app.Configuration.GetValue("Diagnostics:GatewayDebug:Enabled", true))
 {
     app.UseMiddleware<AuthProxyDebugMiddleware>();
 }

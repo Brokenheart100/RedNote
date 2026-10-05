@@ -58,12 +58,6 @@ function getAudience(value: unknown): string | string[] | null {
     return null
 }
 
-function getNumberClaim(value: unknown): number | null {
-    return typeof value === 'number'
-        ? value
-        : null
-}
-
 function maskSessionId(sessionId: string): string {
     if (sessionId.length <= 8) {
         return '***'
@@ -94,7 +88,7 @@ export default defineEventHandler(async event => {
 
     const session = await getUserSession(event)
 
-    if (!session.id) {
+    if (!session.id || !session.user) {
         console.log('🔍 [AUTH DEBUG] 请求没有 Nuxt Session', {
             requestId,
             method: event.method,

@@ -96,7 +96,7 @@ const posts =
       data.value?.items
       ?? []
 
-    return items.map(
+    return items.filter(post => !postStore.isDeleted(post.id)).map(
       post =>
         postStore.getPost(
           post.id,
@@ -107,8 +107,8 @@ const posts =
 
 const totalCount =
   computed(() =>
-    data.value?.totalCount
-    ?? 0,
+    Math.max(0, (data.value?.totalCount ?? 0)
+      - (data.value?.items.filter(post => postStore.isDeleted(post.id)).length ?? 0)),
   )
 
 const pending =

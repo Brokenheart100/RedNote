@@ -26,20 +26,7 @@ public static class PostPublishedHandler
                 UpdatedAtUtc = message.UpdatedAtUtc
             };
 
-        var response =
-            await openSearchClient.IndexAsync(
-                document,
-                descriptor => descriptor
-                    .Index(
-                        OpenSearchIndexInitializer.PostIndexName)
-                    .Id(message.PostId),
-                cancellationToken);
-
-        if (!response.IsValid)
-        {
-            throw new InvalidOperationException(
-                $"Failed to index post '{message.PostId}'. " +
-                response.DebugInformation);
-        }
+        await PostProjectionWriter.WriteSnapshotAsync(
+            openSearchClient, document, message.Revision, cancellationToken);
     }
 }

@@ -1,3 +1,6 @@
+import type { z } from 'zod'
+import type { profileSchema } from '../schemas/requests'
+
 export interface CurrentUser {
     userId: string
     nickname: string | null
@@ -10,11 +13,7 @@ export interface CurrentUser {
     updatedAtUtc: string
 }
 
-export interface UpdateMeRequest {
-    nickname?: string | null
-    avatarUrl?: string | null
-    bio?: string | null
-}
+export type UpdateMeRequest = z.output<typeof profileSchema>
 
 export interface UpdateMeResponse {
     userId: string

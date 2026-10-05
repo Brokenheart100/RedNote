@@ -56,6 +56,9 @@ public static class SearchPostsEndpoint
                 .TrackScores(true)
                 .Query(searchQuery => searchQuery
                     .Bool(booleanQuery => booleanQuery
+                        .MustNot(excluded => excluded.Term(term => term
+                            .Field(document => document.IsDeleted).Value(true)))
+                        .Filter(filter => filter.Exists(exists => exists.Field(document => document.Title)))
                         .Should(
                             should => should
                                 .MultiMatch(multiMatch => multiMatch

@@ -1,4 +1,5 @@
 <Solution>
+  <Project Path="Test/RedNote.Backend.Tests/RedNote.Backend.Tests.csproj" />
   <Project Path="RedNote.AppHost/RedNote.AppHost.csproj" />
   <Project Path="RedNote.Authentication/RedNote.Authentication.csproj" Id="7e8b6fb4-de94-41a4-9974-814617e5e0e6" />
   <Project Path="RedNote.ContentService/RedNote.ContentService.csproj" Id="d21b9632-d113-43d2-b63f-1c8b16be571b" />

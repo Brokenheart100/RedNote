@@ -13,7 +13,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 
-from Test.support import AuthenticatedUser
+from Test.support import AuthenticatedUser, JPEG_BYTES
 
 
 def bearer_headers(
@@ -36,7 +36,7 @@ def upload_image(
         files={
             "file": (
                 file_name,
-                BytesIO(b"\xff\xd8\xff\xd9"),
+                BytesIO(JPEG_BYTES),
                 "image/jpeg",
             )
         },

@@ -13,7 +13,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 
-from Test.support import AuthenticatedUser
+from Test.support import AuthenticatedUser, JPEG_BYTES
 
 
 def bearer_headers(
@@ -37,7 +37,7 @@ def test_upload_jpeg_image(
         files={
             "file": (
                 "test.jpg",
-                BytesIO(b"\xff\xd8\xff\xd9"),
+                BytesIO(JPEG_BYTES),
                 "image/jpeg",
             )
         },
@@ -54,7 +54,7 @@ def test_upload_jpeg_image(
 
     assert body["fileName"] == "test.jpg"
     assert body["contentType"] == "image/jpeg"
-    assert body["size"] == 4
+    assert body["size"] == len(JPEG_BYTES)
 
     assert body["objectKey"].startswith(
         "images/"
@@ -73,7 +73,7 @@ def test_upload_without_token_returns_401(
         files={
             "file": (
                 "test.jpg",
-                BytesIO(b"\xff\xd8\xff\xd9"),
+                BytesIO(JPEG_BYTES),
                 "image/jpeg",
             )
         },

@@ -1,10 +1,9 @@
 <script setup lang="ts">
 import type {
-    PostCommentItem,
     PostCommentResponse,
-    PostCommentsResponse,
     PostResponse,
 } from '~~/shared/types/posts'
+import { getApiErrorMessage } from '~/utils/api-error'
 
 const props = defineProps<{
     post: PostResponse
@@ -15,6 +14,50 @@ const open = defineModel<boolean>('open', {
 })
 
 const postStore = usePostStore()
+const toast = useToast()
+const { loggedIn } = useUserSession()
+const { user: viewer, fetchCurrentUser } = useCurrentUser()
+const viewerId = computed(() => loggedIn.value ? viewer.value?.userId : undefined)
+const ownsPost = computed(() => Boolean(viewerId.value && viewerId.value === currentPost.value.authorUserId))
+const ownsComment = (comment: PostCommentResponse) => Boolean(viewerId.value && viewerId.value === comment.authorUserId)
+const deleteTarget = ref<{ kind: 'post' } | { kind: 'comment', comment: PostCommentResponse } | null>(null)
+const deletePending = computed(() => postStore.isDeletePending(currentPost.value.id) || commentDeletePending.value)
+const confirmOpen = computed({
+    get: () => deleteTarget.value !== null,
+    set: value => { if (!value && !deletePending.value) deleteTarget.value = null },
+})
+const deleteDescription = computed(() => {
+    if (deleteTarget.value?.kind === 'post') return '删除后，帖子及其评论将不再展示。此操作无法撤销。'
+    return deleteTarget.value?.comment.parentCommentId
+        ? '删除这条回复？此操作无法撤销。'
+        : '删除这条评论及其全部回复？此操作无法撤销。'
+})
+
+async function confirmDelete(): Promise<void> {
+    const target = deleteTarget.value
+    const id = currentPost.value.id
+    if (!target || deletePending.value) return
+    if (target.kind === 'comment') {
+        if (!ownsComment(target.comment)) return
+        if (await deleteComment(target.comment)) {
+            deleteTarget.value = null
+            toast.add({ title: '评论已删除', color: 'success' })
+        }
+        return
+    }
+    if (!ownsPost.value) return
+    try {
+        await postStore.deletePost(id)
+        if (id !== currentPost.value.id || !open.value) return
+        deleteTarget.value = null
+        open.value = false
+        toast.add({ title: '帖子已删除', color: 'success' })
+    }
+    catch (error) {
+        toast.add({ title: '帖子删除失败',
+            description: getApiErrorMessage(error, '请稍后重试。'), color: 'error' })
+    }
+}
 
 const currentPost = computed<PostResponse>(() => {
     return postStore.getPost(props.post.id) ?? props.post
@@ -46,62 +89,13 @@ const hasNextMedia = computed(() => {
 })
 
 
-// interface CommentAuthorResponse {
-//     userId: string
-//     nickname: string | null
-//     avatarUrl: string | null
-// }
-
-// interface PostCommentResponse {
-//     id: string
-//     postId: string
-//     authorUserId: string
-//     author: CommentAuthorResponse
-//     content: string
-//     parentCommentId: string | null
-//     createdAtUtc: string
-//     updatedAtUtc: string
-// }
-
-// interface PostCommentItem extends PostCommentResponse {
-//     replies: PostCommentResponse[]
-// }
-
-// interface PostCommentsResponse {
-//     page: number
-//     pageSize: number
-//     totalCount: number
-//     items: PostCommentItem[]
-// }
-
-
-const comments = ref<PostCommentItem[]>([])
-
-const commentsPending = ref(false)
-
-const commentsLoaded = ref(false)
-
-const commentsError = ref<string | null>(null)
-
-const commentContent = ref('')
-
-const commentSubmitting = ref(false)
-
-const localCommentCount = ref(currentPost.value.commentCount)
-
-const replyingTo = ref<PostCommentItem | null>(null)
-
-
-const canSubmitComment = computed(() => {
-    const value = commentContent.value.trim()
-
-    return (
-        value.length > 0
-        && value.length <= 1000
-        && !commentSubmitting.value
-    )
-})
-
+const {
+    comments, commentsPending, commentsError, commentContent,
+    commentSubmitting, localCommentCount, replyingTo, canSubmitComment,
+    loadComments, submitComment, startReply, cancelReply,
+    hasMoreComments, loadMoreComments,
+    deleteComment, commentDeletePending,
+} = usePostComments(currentPost, open)
 
 function getCommentAuthorName(
     comment: PostCommentResponse,
@@ -147,144 +141,6 @@ const commentPlaceholder = computed(() => {
 })
 
 
-async function loadComments(): Promise<void> {
-    if (commentsPending.value) {
-        return
-    }
-
-    commentsPending.value = true
-    commentsError.value = null
-
-    try {
-        const response = await $fetch<PostCommentsResponse>(
-            `/api/posts/${encodeURIComponent(currentPost.value.id)}/comments`,
-            {
-                query: {
-                    page: 1,
-                    pageSize: 50,
-                },
-            },
-        )
-
-        comments.value = response.items
-        localCommentCount.value = response.totalCount
-        commentsLoaded.value = true
-    }
-    catch (error: unknown) {
-        console.error(
-            '❌ 评论加载失败',
-            {
-                postId: currentPost.value.id,
-                error,
-            },
-        )
-
-        commentsError.value = '评论加载失败，请稍后重试。'
-    }
-    finally {
-        commentsPending.value = false
-    }
-}
-
-
-async function submitComment(): Promise<void> {
-    if (!canSubmitComment.value) {
-        return
-    }
-
-    const content = commentContent.value.trim()
-    const parentComment = replyingTo.value
-    const postId = currentPost.value.id
-
-    commentSubmitting.value = true
-
-    try {
-        const created = await $fetch<PostCommentResponse>(
-            `/api/posts/${encodeURIComponent(postId)}/comments`,
-            {
-                method: 'POST',
-                body: {
-                    content,
-                    parentCommentId: parentComment?.id ?? null,
-                },
-            },
-        )
-
-        if (parentComment) {
-            const target = comments.value.find(
-                comment => comment.id === parentComment.id,
-            )
-
-            if (target) {
-                target.replies.push(created)
-            }
-        }
-        else {
-            comments.value.unshift({
-                ...created,
-                replies: [],
-            })
-        }
-
-        commentContent.value = ''
-        replyingTo.value = null
-        localCommentCount.value++
-
-        /*
-         * PostResponse.commentCount 是帖子全局互动指标。
-         * 新增评论或回复后同步更新 Pinia 中的帖子实体，
-         * FeedCard 与 DetailModal 会保持一致。
-         */
-        postStore.patchPost(
-            postId,
-            {
-                commentCount: currentPost.value.commentCount + 1,
-            },
-        )
-
-        console.log(
-            parentComment
-                ? '↩️ 回复发布成功'
-                : '💬 评论发布成功',
-            {
-                postId,
-                commentId: created.id,
-                parentCommentId: created.parentCommentId,
-                authorUserId: created.authorUserId,
-                authorNickname: created.author.nickname,
-            },
-        )
-    }
-    catch (error: unknown) {
-        console.error(
-            parentComment
-                ? '❌ 回复发布失败'
-                : '❌ 评论发布失败',
-            {
-                postId,
-                parentCommentId: parentComment?.id ?? null,
-                error,
-            },
-        )
-    }
-    finally {
-        commentSubmitting.value = false
-    }
-}
-
-
-function startReply(
-    comment: PostCommentItem,
-): void {
-    replyingTo.value = comment
-}
-
-
-function cancelReply(): void {
-    replyingTo.value = null
-}
-
-
 async function toggleLike(): Promise<void> {
     if (likePending.value) {
         return
@@ -307,42 +163,11 @@ async function toggleLike(): Promise<void> {
 }
 
 
-watch(
-    open,
-    async value => {
-        if (!value) {
-            replyingTo.value = null
-            commentContent.value = ''
-
-            return
-        }
-
-        activeMediaIndex.value = 0
-
-        if (!commentsLoaded.value) {
-            await loadComments()
-        }
-    },
-)
-
-
-watch(
-    () => props.post.id,
-    () => {
-        comments.value = []
-        commentsLoaded.value = false
-        commentsError.value = null
-        commentContent.value = ''
-        localCommentCount.value = currentPost.value.commentCount
-        replyingTo.value = null
-        activeMediaIndex.value = 0
-
-        if (open.value) {
-            void loadComments()
-        }
-    },
-)
-
+watch([open, () => props.post.id], () => {
+    activeMediaIndex.value = 0
+    deleteTarget.value = null
+    if (open.value && loggedIn.value) void fetchCurrentUser()
+}, { immediate: true })
 
 function previousMedia(): void {
     if (hasPreviousMedia.value) {
@@ -416,7 +241,7 @@ function formatCount(
 
 
 <template>
-    <UModal v-model:open="open" :ui="{
+    <UModal v-model:open="open" :dismissible="!deletePending" :ui="{
         overlay: 'bg-black/45 backdrop-blur-xl',
         content: 'w-[min(94vw,1400px)] max-w-none overflow-hidden rounded-3xl bg-default p-0 shadow-2xl ring-1 ring-white/10',
     }">
@@ -439,8 +264,8 @@ function formatCount(
                     <div class="absolute inset-0 bg-black/30" aria-hidden="true" />
 
                     <!-- 主图 -->
-                    <img v-if="activeMedia" :src="activeMedia.url" :alt="currentPost.title"
-                        class="relative z-10 max-h-full max-w-full object-contain">
+                    <NuxtImg v-if="activeMedia" :src="activeMedia.url" :alt="currentPost.title" densities="1"
+                        class="relative z-10 max-h-full max-w-full object-contain" decoding="async" />
 
                     <div v-else class="relative z-10 flex flex-col items-center gap-3 text-white/70">
                         <UIcon name="i-lucide-image-off" class="size-12" />
@@ -484,7 +309,7 @@ function formatCount(
 
                     <header class="shrink-0 flex items-center justify-between border-b border-default px-6 py-4">
                         <div class="flex min-w-0 items-center gap-3">
-                            <UAvatar :src="authorAvatarUrl" :alt="authorName" :text="authorAvatarFallback" size="md"
+                            <UAvatar densities="1" :src="authorAvatarUrl" :alt="authorName" :text="authorAvatarFallback" size="md"
                                 class="shrink-0" />
 
                             <div class="min-w-0">
@@ -498,7 +323,13 @@ function formatCount(
                             </div>
                         </div>
 
-                        <UButton icon="i-lucide-x" color="neutral" variant="ghost" aria-label="关闭详情" @click="close" />
+                        <div class="flex items-center gap-2">
+                            <UButton v-if="ownsPost" icon="i-lucide-trash-2" color="error" variant="ghost"
+                                aria-label="删除帖子" :disabled="deletePending || commentSubmitting"
+                                @click="deleteTarget = { kind: 'post' }" />
+                            <UButton icon="i-lucide-x" color="neutral" variant="ghost" aria-label="关闭详情"
+                                :disabled="deletePending" @click="close" />
+                        </div>
                     </header>
 
 
@@ -538,8 +369,8 @@ function formatCount(
                                         ? 'ring-2 ring-primary'
                                         : 'opacity-70 hover:opacity-100'
                                         " @click="selectMedia(index)">
-                                    <img :src="media.url" :alt="`${currentPost.title} ${index + 1}`"
-                                        class="size-full object-cover" loading="lazy">
+                                    <NuxtImg :src="media.url" :alt="`${currentPost.title} ${index + 1}`" densities="1"
+                                        class="size-full object-cover" loading="lazy" decoding="async" />
                                 </button>
                             </div>
 
@@ -556,7 +387,7 @@ function formatCount(
                                     评论
                                 </h3>
 
-                                <span class="text-xs text-muted">
+                                <span class="text-xs text-muted" role="status" aria-label="评论数量">
                                     {{ localCommentCount }}
                                 </span>
                             </div>
@@ -591,7 +422,7 @@ function formatCount(
                                     {{ commentsError }}
                                 </p>
 
-                                <UButton size="sm" color="neutral" variant="soft" @click="loadComments">
+                                <UButton size="sm" color="neutral" variant="soft" @click="loadComments()">
                                     重新加载
                                 </UButton>
                             </div>
@@ -624,7 +455,7 @@ function formatCount(
                                 <article v-for="comment in comments" :key="comment.id" class="flex gap-3">
 
                                     <!-- 评论作者头像 -->
-                                    <UAvatar :src="getCommentAuthorAvatarUrl(comment)"
+                                    <UAvatar densities="1" :src="getCommentAuthorAvatarUrl(comment)"
                                         :alt="getCommentAuthorName(comment)" :text="getCommentAuthorFallback(comment)"
                                         size="sm" class="shrink-0" />
 
@@ -651,11 +482,17 @@ function formatCount(
                                         <!-- 回复按钮 -->
                                         <button type="button"
                                             class="mt-2 flex items-center gap-1 text-xs text-muted transition hover:text-highlighted"
-                                            @click="startReply(comment)">
+                                            :disabled="deletePending" @click="startReply(comment)">
                                             <UIcon name="i-lucide-reply" class="size-3.5" />
 
                                             回复
                                         </button>
+                                        <UButton v-if="ownsComment(comment)" size="xs" color="error" variant="ghost"
+                                            icon="i-lucide-trash-2" aria-label="删除评论"
+                                            :disabled="deletePending || commentSubmitting"
+                                            @click="deleteTarget = { kind: 'comment', comment }">
+                                            删除
+                                        </UButton>
 
 
                                         <!-- ===================================== -->
@@ -667,7 +504,7 @@ function formatCount(
 
                                             <div v-for="reply in comment.replies" :key="reply.id" class="flex gap-2.5">
 
-                                                <UAvatar :src="getCommentAuthorAvatarUrl(reply)"
+                                                <UAvatar densities="1" :src="getCommentAuthorAvatarUrl(reply)"
                                                     :alt="getCommentAuthorName(reply)"
                                                     :text="getCommentAuthorFallback(reply)" size="2xs"
                                                     class="shrink-0" />
@@ -687,12 +524,22 @@ function formatCount(
                                                         class="mt-1 whitespace-pre-wrap wrap-break-word text-xs leading-5">
                                                         {{ reply.content }}
                                                     </p>
+                                                    <UButton v-if="ownsComment(reply)" size="xs" color="error" variant="ghost"
+                                                        icon="i-lucide-trash-2" aria-label="删除回复"
+                                                        :disabled="deletePending || commentSubmitting"
+                                                        @click="deleteTarget = { kind: 'comment', comment: reply }">
+                                                        删除
+                                                    </UButton>
                                                 </div>
                                             </div>
                                         </div>
                                     </div>
                                 </article>
                             </div>
+                            <UButton v-if="hasMoreComments" :loading="commentsPending"
+                                color="neutral" variant="soft" @click="loadMoreComments()">
+                                加载更多评论
+                            </UButton>
                         </div>
                     </div>
 
@@ -821,6 +668,17 @@ function formatCount(
                         </span>
                     </footer>
                 </section>
+            </div>
+        </template>
+    </UModal>
+    <UModal v-model:open="confirmOpen" title="确认删除" :description="deleteDescription"
+        :dismissible="!deletePending" :close="!deletePending">
+        <template #footer>
+            <div class="flex w-full justify-end gap-3">
+                <UButton color="neutral" variant="outline" :disabled="deletePending" @click="confirmOpen = false">
+                    取消
+                </UButton>
+                <UButton color="error" :loading="deletePending" @click="confirmDelete">确认删除</UButton>
             </div>
         </template>
     </UModal>

@@ -9,12 +9,10 @@ import {
     getFetchErrorStatusCode,
 } from '~~/server/utils/fetch-error'
 
-interface LoginRequest {
-    email: string
-    password: string
-}
+import { parseLogin } from '../../../shared/schemas/requests'
+import { readJsonRequest } from '~~/server/utils/limited-body'
 
-const IDENTITY_COOKIE_PREFIX = '__Host-RedNote.Identity'
+const IDENTITY_COOKIE_PREFIX = 'RedNote.Identity'
 
 export default defineEventHandler(async event => {
     const requestId = event.context.requestId ?? crypto.randomUUID()
@@ -27,22 +25,8 @@ export default defineEventHandler(async event => {
         })
     }
 
-    const body = await readBody<LoginRequest>(event)
-    const email = body.email?.trim()
-
-    if (!email) {
-        throw createError({
-            statusCode: 400,
-            statusMessage: 'Email is required.',
-        })
-    }
-
-    if (!body.password) {
-        throw createError({
-            statusCode: 400,
-            statusMessage: 'Password is required.',
-        })
-    }
+    const body = await readJsonRequest(event, parseLogin)
+    const email = body.email
 
     try {
         /*
@@ -59,6 +43,8 @@ export default defineEventHandler(async event => {
             {
                 baseURL: config.gatewayBaseUrl,
                 method: 'POST',
+                timeout: 15_000,
+                retry: 0,
                 headers: {
                     Cookie: csrf.cookieHeader,
                     [csrf.headerName]: csrf.token,
@@ -82,7 +68,8 @@ export default defineEventHandler(async event => {
         )
 
         const hasIdentityCookie = identitySetCookies.some(cookie =>
-            cookie.startsWith(IDENTITY_COOKIE_PREFIX),
+            cookie.startsWith(`${IDENTITY_COOKIE_PREFIX}=`)
+            || cookie.startsWith(`${IDENTITY_COOKIE_PREFIX}C`),
         )
 
         if (!hasIdentityCookie) {
@@ -116,7 +103,6 @@ export default defineEventHandler(async event => {
             console.error('❌ [BFF] 登录请求失败', {
                 requestId,
                 statusCode,
-                error,
             })
         }
         else {

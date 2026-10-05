@@ -1,10 +1,6 @@
 import type { H3Event } from 'h3'
-
-import {
-    refreshAuthTokenSet,
-    shouldRefreshToken,
-} from './auth-token-refresh'
-
+import { refreshAuthTokenSet } from './auth-token-refresh'
+import { shouldRefreshToken } from './token-refresher'
 import { getAuthTokenSet } from './auth-token-store'
 import { getFetchErrorStatusCode } from './fetch-error'
 
@@ -21,59 +17,32 @@ export async function requireAuthenticatedToken(
     requestId: string,
 ): Promise<AuthenticatedTokenContext> {
     const session = await requireUserSession(event)
-
     if (!session.id) {
-        console.warn('⚠️ [BFF] Session ID 不存在', {
-            requestId,
-        })
-
-        throw createError({
-            statusCode: 401,
-            statusMessage: 'Authentication session is unavailable.',
-        })
+        throw createError({ statusCode: 401, statusMessage: 'Authentication session is unavailable.' })
     }
 
-    const sessionId = session.id
-    let tokens = await getAuthTokenSet(sessionId)
-
+    let tokens
+    try {
+        tokens = await getAuthTokenSet(session.id)
+    }
+    catch {
+        throw createError({ statusCode: 503, statusMessage: 'Authentication storage is unavailable.' })
+    }
     if (!tokens?.accessToken) {
-        console.warn('⚠️ [BFF] Access Token 不存在', {
-            requestId,
-            sessionId,
-        })
-
-        throw createError({
-            statusCode: 401,
-            statusMessage: 'Authentication token is unavailable.',
-        })
+        await clearUserSession(event)
+        throw createError({ statusCode: 401, statusMessage: 'Authentication token is unavailable.' })
     }
-
     if (shouldRefreshToken(tokens)) {
-        console.log('🔄 [BFF] Access Token 即将过期，开始自动刷新', {
-            requestId,
-            sessionId,
-            expiresAt: tokens.expiresAt ?? null,
-        })
-
         try {
-            tokens = await refreshAuthTokenSet(event, sessionId, requestId)
+            tokens = await refreshAuthTokenSet(event, session.id, requestId)
         }
-        catch (error: unknown) {
-            if (getFetchErrorStatusCode(error) === 401) {
-                console.warn('⚠️ [BFF] 认证 Session 已过期，清理 Nuxt Session', {
-                    requestId,
-                    sessionId,
-                })
-
-                await clearUserSession(event)
-            }
-
+        catch (error) {
+            if (getFetchErrorStatusCode(error) === 401) await clearUserSession(event)
             throw error
         }
     }
-
     return {
-        sessionId,
+        sessionId: session.id,
         accessToken: tokens.accessToken,
         authorization: `${tokens.tokenType} ${tokens.accessToken}`,
         tokenType: tokens.tokenType,

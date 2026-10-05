@@ -13,10 +13,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 
-from Test.support import AuthenticatedUser
-
-
-JPEG_BYTES = b"\xff\xd8\xff\xd9"
+from Test.support import AuthenticatedUser, JPEG_BYTES
 
 
 def bearer_headers(

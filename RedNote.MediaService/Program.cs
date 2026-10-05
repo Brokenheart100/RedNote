@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using ProtoBuf.Grpc.Server;
 using RedNote.Authentication;
 using RedNote.Contracts.Media;
+using RedNote.MediaService.Features.Media.Common;
 using RedNote.MediaService.Infrastructure.Persistence;
 using ServiceDefaults;
 using Wolverine;
@@ -25,11 +26,14 @@ builder.Services.AddDbContext<MediaServiceDbContext>(options =>
 });
 
 builder.Services.AddRedNoteJwtAuthentication(builder.Configuration);
+builder.Services.AddScoped<MediaQueryService>();
+builder.Services.AddHostedService<OrphanedUploadCleanup>();
 
 builder.Host.UseWolverine(options =>
 {
     options.UseRuntimeCompilation();
     options.CodeGeneration.AlwaysUseServiceLocationFor<MediaServiceDbContext>();
+    options.CodeGeneration.AlwaysUseServiceLocationFor<MediaQueryService>();
 });
 
 builder.Services.AddWolverineHttp();
@@ -63,6 +67,10 @@ builder.Services.AddSingleton<IAmazonS3>(_ =>
 
     return new AmazonS3Client(credentials, configuration);
 });
+
+// Sign against the browser-visible host; never rewrite a URL after signing it.
+builder.Services.AddSingleton<MediaUrlSigner>(_ => new MediaUrlSigner(
+    s3AccessKey, s3SecretKey, builder.Configuration["S3:PublicServiceUrl"] ?? s3Endpoint));
 
 var app = builder.Build();
 

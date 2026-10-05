@@ -45,6 +45,8 @@ public sealed class ContentServiceDbContext(
 
             entity.HasKey(post => post.Id);
 
+            entity.Property(post => post.Revision).HasDefaultValue(1L);
+
             entity.Property(post => post.Title)
                 .HasMaxLength(100)
                 .IsRequired();

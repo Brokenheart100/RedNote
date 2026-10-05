@@ -47,6 +47,9 @@ public sealed partial class OpenSearchIndexInitializer(
                     .Map<PostSearchDocument>(
                         mapping => mapping
                             .Properties(properties => properties
+                                .Boolean(boolean => boolean.Name(document => document.IsDeleted))
+                                .Number(number => number.Name(document => document.MetadataRevision).Type(NumberType.Long))
+                                .Number(number => number.Name(document => document.MetricsRevision).Type(NumberType.Long))
 
                                 .Keyword(keyword => keyword
                                     .Name(document =>

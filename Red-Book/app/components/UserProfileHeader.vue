@@ -71,7 +71,7 @@ function handleEdit(): void {
                 md:justify-between
             ">
             <div class="flex min-w-0 items-start gap-4">
-                <UAvatar :src="avatarUrl" :alt="displayName" :text="avatarFallback" size="3xl" class="shrink-0" />
+                <UAvatar densities="1" :src="avatarUrl" :alt="displayName" :text="avatarFallback" size="3xl" class="shrink-0" />
 
                 <div class="min-w-0">
                     <div class="flex flex-wrap items-center gap-2">

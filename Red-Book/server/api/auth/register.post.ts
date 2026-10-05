@@ -9,12 +9,8 @@ import {
     getFetchErrorStatusCode,
 } from '~~/server/utils/fetch-error'
 
-interface RegisterRequest {
-    email: string
-    password: string
-    displayName?: string | null
-    familyName?: string | null
-}
+import { parseRegister } from '../../../shared/schemas/requests'
+import { readJsonRequest } from '~~/server/utils/limited-body'
 
 export default defineEventHandler(async event => {
     const requestId = event.context.requestId ?? crypto.randomUUID()
@@ -27,23 +23,8 @@ export default defineEventHandler(async event => {
         })
     }
 
-    const body = await readBody<RegisterRequest>(event)
-
-    const email = body.email?.trim()
-
-    if (!email) {
-        throw createError({
-            statusCode: 400,
-            statusMessage: 'Email is required.',
-        })
-    }
-
-    if (!body.password) {
-        throw createError({
-            statusCode: 400,
-            statusMessage: 'Password is required.',
-        })
-    }
+    const body = await readJsonRequest(event, parseRegister)
+    const email = body.email
 
     try {
         const csrf = await getIdentityCsrfContext(
@@ -56,6 +37,8 @@ export default defineEventHandler(async event => {
             {
                 baseURL: config.gatewayBaseUrl,
                 method: 'POST',
+                timeout: 15_000,
+                retry: 0,
 
                 headers: {
                     Cookie: csrf.cookieHeader,
@@ -79,7 +62,6 @@ export default defineEventHandler(async event => {
             console.error('❌ [BFF] 注册请求失败', {
                 requestId,
                 statusCode,
-                error,
             })
         }
         else {

@@ -2,6 +2,12 @@ namespace RedNote.SearchService.Domain.Posts;
 
 public sealed class PostSearchDocument
 {
+    public bool IsDeleted { get; init; }
+
+    public long MetadataRevision { get; init; }
+
+    public long MetricsRevision { get; init; }
+
     public Guid Id { get; init; }
 
     public Guid AuthorUserId { get; init; }

@@ -3,6 +3,7 @@ using Amazon.S3;
 using Amazon.S3.Model;
 using Asp.Versioning;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.EntityFrameworkCore;
 using RedNote.MediaService.Domain.Media;
 using RedNote.MediaService.Infrastructure.Persistence;
 using Wolverine.Http;
@@ -31,6 +32,7 @@ public static class UploadImageEndpoint
         IAmazonS3 s3,
         IConfiguration configuration,
         MediaServiceDbContext dbContext,
+        ILogger<MediaServiceDbContext> logger,
         CancellationToken cancellationToken)
     {
         /*
@@ -115,6 +117,13 @@ public static class UploadImageEndpoint
          * =========================================================
          */
 
+        using (var validationStream = file.OpenReadStream())
+        {
+            var validationError = ImageUploadValidator.Validate(validationStream, file.ContentType);
+            if (validationError is not null)
+                return ValidationProblem("file", validationError);
+        }
+
         var bucketName =
             configuration["S3:BucketName"]
             ?? throw new InvalidOperationException(
@@ -168,8 +177,37 @@ public static class UploadImageEndpoint
         dbContext.MediaAssets.Add(
             mediaAsset);
 
-        await dbContext.SaveChangesAsync(
-            cancellationToken);
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (Exception saveException)
+        {
+            // Request cancellation must not also cancel compensation. If commit
+            // outcome is unknown, check using a separate context before deleting.
+            try
+            {
+                using var cleanupTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+                await using var verificationContext = new MediaServiceDbContext(
+                    new Microsoft.EntityFrameworkCore.DbContextOptionsBuilder<MediaServiceDbContext>()
+                        .UseNpgsql(configuration.GetConnectionString("mediadb")).Options);
+                if (!await verificationContext.MediaAssets.AsNoTracking()
+                    .AnyAsync(asset => asset.Id == mediaId, cleanupTimeout.Token))
+                {
+                    await s3.DeleteObjectAsync(new DeleteObjectRequest
+                    {
+                        BucketName = bucketName, Key = objectKey
+                    }, cleanupTimeout.Token);
+                }
+            }
+            catch (Exception cleanupException)
+            {
+                logger.LogError(cleanupException,
+                    "Upload compensation could not verify or clean object {ObjectKey}. Original failure: {FailureType}",
+                    objectKey, saveException.GetType().Name);
+            }
+            throw;
+        }
 
         /*
          * =========================================================

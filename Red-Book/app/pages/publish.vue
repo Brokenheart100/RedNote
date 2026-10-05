@@ -1,6 +1,7 @@
 <script setup lang="ts">
+import { parsePost } from '~~/shared/schemas/requests'
+import { getRequestValidationMessage } from '~/utils/request-validation'
 import type {
-    CreatePostRequest,
     PostResponse,
 } from '~~/shared/types/posts'
 
@@ -93,33 +94,22 @@ function handleTagKeydown(event: KeyboardEvent): void {
 }
 
 function validate(): string | null {
-    const normalizedTitle = title.value.trim()
-    const normalizedContent = content.value.trim()
-
-    if (!normalizedTitle) {
-        return '请输入标题。'
-    }
-
-    if (normalizedTitle.length > 100) {
-        return '标题不能超过 100 个字符。'
-    }
-
-    if (!normalizedContent) {
-        return '请输入正文。'
-    }
-
-    if (normalizedContent.length > 5000) {
-        return '正文不能超过 5000 个字符。'
-    }
-
     if (fileCount.value > maxImageCount) {
         return `最多只能上传 ${maxImageCount} 张图片。`
     }
-
+    try {
+        // Validate text before uploading; IDs are checked once uploads complete.
+        parsePost({ title: title.value, content: content.value, tags: tags.value, mediaIds: [] })
+    }
+    catch (error) {
+        return getRequestValidationMessage(error) ?? '发布内容不符合要求。'
+    }
     return null
 }
 
 function resolvePublishError(error: unknown): string {
+    const validationMessage = getRequestValidationMessage(error)
+    if (validationMessage) return validationMessage
     switch (getApiErrorStatus(error)) {
         case 400:
             return getApiErrorMessage(error, '发布内容不符合要求，请检查后重试。')
@@ -173,12 +163,12 @@ async function publish(): Promise<void> {
             throw new Error('Uploaded media response is incomplete.')
         }
 
-        const request: CreatePostRequest = {
-            title: title.value.trim(),
-            content: content.value.trim(),
+        const request = parsePost({
+            title: title.value,
+            content: content.value,
             mediaIds,
             tags: [...tags.value],
-        }
+        })
 
         const post = await $fetch<PostResponse>('/api/posts', {
             method: 'POST',

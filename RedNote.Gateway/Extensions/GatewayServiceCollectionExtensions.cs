@@ -6,7 +6,6 @@ namespace RedNote.Gateway.Extensions;
 internal static class GatewayServiceCollectionExtensions
 {
     internal const string FrontendCorsPolicy = "FrontendCors";
-    internal const string AuthenticatedPolicy = "authenticated";
 
     /// <summary>
     /// 注册 Gateway 所需的服务。
@@ -21,16 +20,6 @@ internal static class GatewayServiceCollectionExtensions
         services.AddProblemDetails();
 
         services.AddRedNoteJwtAuthentication(configuration);
-
-        services.AddAuthorization(options =>
-        {
-            options.AddPolicy(
-                AuthenticatedPolicy,
-                policy =>
-                {
-                    policy.RequireAuthenticatedUser();
-                });
-        });
 
         AddGatewayCors(services, configuration);
 

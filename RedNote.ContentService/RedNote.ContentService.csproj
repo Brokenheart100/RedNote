@@ -14,9 +14,6 @@
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
     <!-- 项目直接使用 PostgreSQL EF Core Provider API。 -->
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
-    <!-- OpenIddict 资源服务器令牌验证。 -->
-    <PackageReference Include="OpenIddict.Validation.AspNetCore" />
-    <PackageReference Include="OpenIddict.Validation.SystemNetHttp" />
     <!-- 仅用于 Migration 和设计时 DbContext 创建。 -->
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
       <PrivateAssets>all</PrivateAssets>

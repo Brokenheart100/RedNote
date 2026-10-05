@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { parseRegister } from '~~/shared/schemas/requests'
+import { getRequestValidationMessage } from '~/utils/request-validation'
 import type { RegisterResponse } from '~~/shared/types/auth'
 
 import {
@@ -44,6 +46,8 @@ function fillDevelopmentForm(): void {
 }
 
 function resolveRegisterError(error: unknown): string {
+    const validationMessage = getRequestValidationMessage(error)
+    if (validationMessage) return validationMessage
     switch (getApiErrorStatus(error)) {
         case 400:
             return getApiErrorMessage(error, '注册信息无效。')
@@ -66,18 +70,6 @@ async function handleSubmit(): Promise<void> {
 
     errorMessage.value = null
 
-    const normalizedEmail = email.value.trim()
-
-    if (!normalizedEmail) {
-        errorMessage.value = '请输入邮箱。'
-        return
-    }
-
-    if (!password.value) {
-        errorMessage.value = '请输入密码。'
-        return
-    }
-
     if (password.value !== confirmPassword.value) {
         errorMessage.value = '两次输入的密码不一致。'
         return
@@ -86,19 +78,20 @@ async function handleSubmit(): Promise<void> {
     submitting.value = true
 
     try {
+        const request = parseRegister({
+            email: email.value,
+            password: password.value,
+            displayName: displayName.value,
+            familyName: familyName.value,
+        })
         await $fetch<RegisterResponse>('/api/auth/register', {
             method: 'POST',
 
-            body: {
-                email: normalizedEmail,
-                password: password.value,
-                displayName: displayName.value.trim() || null,
-                familyName: familyName.value.trim() || null,
-            },
+            body: request,
         })
 
         storeDevelopmentLogin({
-            email: normalizedEmail,
+            email: request.email,
             password: password.value,
         })
 
@@ -107,7 +100,7 @@ async function handleSubmit(): Promise<void> {
 
             query: {
                 registered: '1',
-                email: normalizedEmail,
+                email: request.email,
                 ...(returnUrl.value
                     ? {
                         returnUrl: returnUrl.value,

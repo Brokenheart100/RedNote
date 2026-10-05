@@ -203,7 +203,8 @@ public static class CreatePostEndpoint
                 0,
                 0,
                 post.CreatedAtUtc,
-                post.UpdatedAtUtc));
+                post.UpdatedAtUtc,
+                post.Revision));
 
         await outbox.SaveChangesAndFlushMessagesAsync(
             cancellationToken);

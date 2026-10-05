@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using RedNote.ContentService.Domain.Posts;
+using RedNote.ContentService.Features.Posts.Common;
 using RedNote.ContentService.Infrastructure.Persistence;
 using RedNote.Contracts.Content;
 using Wolverine.EntityFrameworkCore;
@@ -37,6 +38,11 @@ public static class DeletePostCommentEndpoint
             return Results.Unauthorized();
         }
 
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+        var post = await PostWriteLock.AcquireAsync(dbContext, postId, cancellationToken);
+        if (post is null || post.Status == PostStatus.Deleted)
+            return Results.NotFound();
+
         var comment =
             await dbContext.PostComments
                 .SingleOrDefaultAsync(
@@ -64,6 +70,17 @@ public static class DeletePostCommentEndpoint
         }
 
         comment.Delete();
+
+        // A removed root must not leave live, unreachable replies in statistics.
+        var removedCount = 1;
+        if (comment.ParentCommentId is null)
+        {
+            var replies = await dbContext.PostComments.Where(reply =>
+                reply.PostId == postId && reply.ParentCommentId == commentId
+                && reply.Status == PostCommentStatus.Published).ToListAsync(cancellationToken);
+            foreach (var reply in replies) reply.Delete();
+            removedCount += replies.Count;
+        }
 
         /*
          * Metrics
@@ -94,17 +111,19 @@ public static class DeletePostCommentEndpoint
         var commentCount =
             Math.Max(
                 0,
-                existingCommentCount - 1);
+                existingCommentCount - removedCount);
 
         /*
          * Transactional Outbox
          */
 
+        post.RecordMetricsChange();
         await outbox.PublishAsync(
             new PostMetricsChanged(
                 postId,
                 likeCount,
-                commentCount));
+                commentCount,
+                post.Revision));
 
         await outbox
             .SaveChangesAndFlushMessagesAsync(

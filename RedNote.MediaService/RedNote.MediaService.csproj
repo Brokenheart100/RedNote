@@ -5,6 +5,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="RedNote.Backend.Tests" />
+    <PackageReference Include="SkiaSharp" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" />
     <PackageReference Include="AWSSDK.S3" />
     <!-- Aspire PostgreSQL + EF Core 集成：
          提供连接配置、健康检查、遥测和连接池。 -->
@@ -15,9 +18,6 @@
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
     <!-- 项目直接使用 PostgreSQL EF Core Provider API。 -->
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
-    <!-- OpenIddict 资源服务器令牌验证。 -->
-    <PackageReference Include="OpenIddict.Validation.AspNetCore" />
-    <PackageReference Include="OpenIddict.Validation.SystemNetHttp" />
     <PackageReference Include="WolverineFx.Http" />
     <PackageReference Include="WolverineFx.RuntimeCompilation" />
     <PackageReference Include="WolverineFx.Grpc" />

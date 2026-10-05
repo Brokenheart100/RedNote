@@ -1,11 +1,10 @@
-using Microsoft.AspNetCore.Authentication.BearerToken;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using RedNote.IdentityService.Domain.Users;
 using RedNote.IdentityService.Infrastructure.OpenIddict;
 using RedNote.IdentityService.Infrastructure.Persistence;
-using RedNote.IdentityService.Middleware;
 using ServiceDefaults;
 using Wolverine;
 using Wolverine.Http;
@@ -25,10 +24,8 @@ var trustAnyForwardedHeaders = builder.Configuration.GetValue(
     "Security:TrustAnyForwardedHeaders",
     isDevelopment);
 
-var connectionString =
-    builder.Configuration.GetConnectionString("identitydb")
-    ?? throw new InvalidOperationException(
-        "Connection string 'identitydb' was not found.");
+var connectionString = builder.Configuration.GetConnectionString("identitydb")
+    ?? throw new InvalidOperationException("Connection string 'identitydb' was not found.");
 
 builder.Services.AddDbContext<IdentityServiceDbContext>(options =>
 {
@@ -50,23 +47,8 @@ builder.Services
     .AddRoles<IdentityRole<Guid>>()
     .AddEntityFrameworkStores<IdentityServiceDbContext>();
 
-/*
- * Identity Application Cookie
- *
- * 这里不再使用 Security:RequireHttps 控制 Cookie。
- *
- * 原因：
- *
- * Browser -> Cloudflare -> Gateway 是 HTTPS；
- * Gateway -> IdentityService 可以是内部 HTTP。
- *
- * SameAsRequest 会依据 Forwarded Headers 处理之后的 Request.Scheme：
- *
- * - 公网 HTTPS 请求：写入 Secure Cookie。  
- * - 内部 HTTP 请求：不会因为 SecurePolicy.Always 直接失败。
- *
- * SameSite=None 用于 Frontend 与 Gateway 不同 Origin 的认证流程。
- */
+// Local HTTP development uses SameAsRequest; production cookies require HTTPS.
+// Lax supports the top-level OIDC authorization-code redirect.
 builder.Services.ConfigureApplicationCookie(options =>
 {
     options.Cookie.Name = "RedNote.Identity";
@@ -74,20 +56,14 @@ builder.Services.ConfigureApplicationCookie(options =>
     options.Cookie.IsEssential = true;
     options.Cookie.Path = "/";
 
-    options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+    options.Cookie.SecurePolicy = isDevelopment || builder.Configuration.GetValue<bool>("Security:AllowHttpCookies")
+        ? CookieSecurePolicy.SameAsRequest
+        : CookieSecurePolicy.Always;
     options.Cookie.SameSite = SameSiteMode.Lax;
 
     options.SlidingExpiration = true;
     options.ExpireTimeSpan = TimeSpan.FromDays(14);
 });
-
-builder.Services.Configure<BearerTokenOptions>(
-    IdentityConstants.BearerScheme,
-    options =>
-    {
-        options.BearerTokenExpiration = TimeSpan.FromMinutes(15);
-        options.RefreshTokenExpiration = TimeSpan.FromDays(14);
-    });
 
 /*
  * Antiforgery Cookie
@@ -156,14 +132,10 @@ builder.Services
          */
         options.SetIssuer(openIddictIssuer);
 
-        options.SetAuthorizationEndpointUris(
-            new Uri(openIddictIssuer, "connect/authorize"));
-
-        options.SetTokenEndpointUris(
-            new Uri(openIddictIssuer, "connect/token"));
-
-        options.SetEndSessionEndpointUris(
-            new Uri(openIddictIssuer, "connect/logout"));
+        // Match paths on internal requests; discovery still uses the public issuer.
+        options.SetAuthorizationEndpointUris("connect/authorize");
+        options.SetTokenEndpointUris("connect/token");
+        options.SetEndSessionEndpointUris("connect/logout");
 
         options.AllowAuthorizationCodeFlow();
         options.AllowRefreshTokenFlow();
@@ -252,6 +224,7 @@ builder.Host.UseWolverine(options =>
 
     options.CodeGeneration
         .AlwaysUseServiceLocationFor<SignInManager<ApplicationUser>>();
+    options.CodeGeneration.AlwaysUseServiceLocationFor<IAntiforgery>();
 });
 
 var app = builder.Build();
@@ -261,11 +234,6 @@ var app = builder.Build();
  * 这样后面的 Cookie / OpenIddict 才能看到恢复后的 Scheme/Host。
  */
 app.UseForwardedHeaders();
-
-if (app.Environment.IsDevelopment())
-{
-    app.UseMiddleware<AuthDebugMiddleware>();
-}
 
 await app.Services
     .GetRequiredService<OpenIddictSeeder>()

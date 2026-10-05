@@ -1,14 +1,7 @@
-export interface CsrfResponse {
-    token: string
-    headerName: string
-}
+import type { z } from 'zod'
+import type { loginSchema, registerSchema } from '../schemas/requests'
 
-export interface RegisterRequest {
-    email: string
-    password: string
-    displayName: string | null
-    familyName: string | null
-}
+export type RegisterRequest = z.output<typeof registerSchema>
 
 export interface RegisterResponse {
     id: string
@@ -18,7 +11,4 @@ export interface RegisterResponse {
     createdAtUtc: string
 }
 
-export interface LoginRequest {
-    email: string
-    password: string
-}
+export type LoginRequest = z.output<typeof loginSchema>

@@ -9,7 +9,7 @@ interface FetchErrorLike {
     statusCode?: number
     statusMessage?: string
     message?: string
-    data?: ApiProblemDetails
+    data?: ApiProblemDetails & { data?: ApiProblemDetails }
 }
 
 function asFetchError(error: unknown): FetchErrorLike | null {
@@ -33,7 +33,8 @@ export function getFirstValidationError(
     }
 
     for (const messages of Object.values(errors)) {
-        const message = messages.find(value => value.trim().length > 0)
+        if (!Array.isArray(messages)) continue
+        const message = messages.find(value => typeof value === 'string' && value.trim().length > 0)
 
         if (message) {
             return message
@@ -44,7 +45,8 @@ export function getFirstValidationError(
 }
 
 export function getApiProblemDetails(error: unknown): ApiProblemDetails | undefined {
-    return asFetchError(error)?.data
+    const data = asFetchError(error)?.data
+    return data?.data ?? data
 }
 
 export function getApiErrorMessage(
@@ -52,11 +54,12 @@ export function getApiErrorMessage(
     fallback: string,
 ): string {
     const fetchError = asFetchError(error)
-    const validationMessage = getFirstValidationError(fetchError?.data?.errors)
+    const problem = getApiProblemDetails(error)
+    const validationMessage = getFirstValidationError(problem?.errors)
 
     return validationMessage
-        ?? fetchError?.data?.detail
-        ?? fetchError?.data?.title
+        ?? problem?.detail
+        ?? problem?.title
         ?? fetchError?.statusMessage
         ?? fetchError?.message
         ?? fallback

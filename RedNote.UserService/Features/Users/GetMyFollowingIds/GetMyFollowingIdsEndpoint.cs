@@ -1,7 +1,6 @@
 using System.Security.Claims;
 using Asp.Versioning;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.EntityFrameworkCore;
 using RedNote.UserService.Infrastructure.Persistence;
 using Wolverine.Http;
 
@@ -28,21 +27,8 @@ public static class GetMyFollowingIdsEndpoint
             return Results.Unauthorized();
         }
 
-        var userIds =
-            await dbContext.UserFollows
-                .AsNoTracking()
-                .Where(
-                    follow =>
-                        follow.FollowerUserId
-                        == currentUserId)
-                .OrderBy(
-                    follow =>
-                        follow.CreatedAtUtc)
-                .Select(
-                    follow =>
-                        follow.FollowingUserId)
-                .ToArrayAsync(
-                    cancellationToken);
+        var userIds = await FollowingIdsQuery.LoadAsync(
+            dbContext, currentUserId, cancellationToken);
 
         return Results.Ok(
             new FollowingIdsResponse(

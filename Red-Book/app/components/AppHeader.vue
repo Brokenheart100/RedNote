@@ -1,7 +1,9 @@
 <script setup lang="ts">
+import { useDebounceFn } from '@vueuse/core'
+import { parseSearch } from '~~/shared/schemas/requests'
+import { getRequestValidationMessage } from '~/utils/request-validation'
 const {
     loggedIn,
-    fetch: fetchSession,
 } = useUserSession()
 
 const {
@@ -20,7 +22,8 @@ const searchQuery = ref(
         ? route.query.q
         : '',
 )
-const logoutPending = ref(false)
+const { logout, logoutPending } = useAuth()
+const searchError = ref<string | null>(null)
 
 const displayName = computed(() => {
     return user.value?.nickname?.trim() || 'RedNote 用户'
@@ -38,47 +41,45 @@ const avatarFallback = computed(() => {
         : 'R'
 })
 
-async function submitSearch(): Promise<void> {
+async function navigateSearch(replace = false): Promise<void> {
     const value = searchQuery.value.trim()
-
+    searchError.value = null
     if (!value) {
         return
     }
-
+    if (route.path === '/search' && route.query.q === value) return
+    try { parseSearch({ q: value }) }
+    catch (error) {
+        searchError.value = getRequestValidationMessage(error) ?? '搜索关键词无效。'
+        return
+    }
     await navigateTo({
         path: '/search',
         query: {
             q: value,
         },
-    })
+    }, { replace })
 }
 
-async function logout(): Promise<void> {
-    if (logoutPending.value) {
-        return
-    }
+const debouncedSearch = useDebounceFn(() => {
+    if (route.path === '/search') return navigateSearch(true)
+}, 350)
 
-    logoutPending.value = true
-
-    try {
-        await $fetch('/api/auth/logout', {
-            method: 'POST',
-        })
-
-        postStore.clear()
-        clearCurrentUser()
-        await fetchSession()
-        await navigateTo('/login')
-    }
-    catch (error: unknown) {
-        console.error('❌ [HEADER] 退出登录失败', {
-            error,
-        })
-    }
-    finally {
-        logoutPending.value = false
-    }
+async function submitSearch(): Promise<void> {
+    debouncedSearch.cancel()
+    await navigateSearch()
 }
+
+watch(searchQuery, value => {
+    searchError.value = null
+    debouncedSearch.cancel()
+    if (route.path === '/search' && value.trim() && value.trim() !== route.query.q) {
+        void debouncedSearch()
+    }
+})
+// Prevent a delayed search from navigating after leaving the page or going back.
+watch(() => route.fullPath, () => debouncedSearch.cancel(), { flush: 'sync' })
+onScopeDispose(() => debouncedSearch.cancel())
 
 const userMenuItems = computed(() => [
     [
@@ -168,11 +169,14 @@ watch(
             </NuxtLink>
 
             <form class="
-                    mx-auto flex w-full
+                    relative mx-auto flex w-full
                     max-w-xl
                 " @submit.prevent="submitSearch">
                 <UInput v-model="searchQuery" icon="i-lucide-search" placeholder="搜索 RedNote" size="lg"
-                    class="w-full" />
+                    aria-label="搜索 RedNote" :aria-invalid="!!searchError"
+                    :aria-describedby="searchError ? 'search-error' : undefined" class="w-full" />
+                <span v-if="searchError" id="search-error" role="alert"
+                    class="absolute top-full mt-1 rounded bg-default px-2 text-sm text-error">{{ searchError }}</span>
             </form>
 
             <div class="flex shrink-0 items-center gap-2">
@@ -191,7 +195,7 @@ watch(
                             flex max-w-48
                             items-center gap-2
                         ">
-                        <UAvatar :src="avatarUrl" :alt="displayName" :text="avatarFallback" size="sm" />
+                        <UAvatar densities="1" :src="avatarUrl" :alt="displayName" :text="avatarFallback" size="sm" />
 
                         <span class="
                                 hidden max-w-28

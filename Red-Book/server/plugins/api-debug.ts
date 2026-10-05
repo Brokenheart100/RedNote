@@ -18,6 +18,8 @@ const SENSITIVE_KEYS = new Set([
     'set-cookie',
     'clientsecret',
     'client_secret',
+    'code',
+    'state',
 ])
 
 function sanitize(value: unknown): unknown {
@@ -78,7 +80,7 @@ export default defineNitroPlugin(nitroApp => {
         console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
         console.log(`➡️ [API REQUEST] ${event.method} ${url.pathname}`, {
             requestId,
-            url: url.toString(),
+            path: url.pathname,
             query: sanitize(getQuery(event)),
         })
     })

@@ -1,5 +1,4 @@
 import {
-    createUpstreamCookieHeader,
     getIdentityCsrfContext,
     getUpstreamSetCookies,
 } from '~~/server/utils/identity-antiforgery'
@@ -31,6 +30,7 @@ export default defineEventHandler(async event => {
         const csrf = await getIdentityCsrfContext(
             config.gatewayBaseUrl,
             requestId,
+            browserCookie,
         )
 
         /*
@@ -51,6 +51,8 @@ export default defineEventHandler(async event => {
             {
                 baseURL: config.gatewayBaseUrl,
                 method: 'POST',
+                timeout: 15_000,
+                retry: 0,
 
                 headers: {
                     Cookie: cookies,
@@ -82,14 +84,12 @@ export default defineEventHandler(async event => {
         identityLogoutError = error
 
         const statusCode = getFetchErrorStatusCode(
-            error,
-            502,
+            error, 502,
         )
 
         console.error('❌ [BFF] Identity logout failed', {
             requestId,
             statusCode,
-            error,
         })
     }
 
@@ -108,6 +108,7 @@ export default defineEventHandler(async event => {
         throw createError({
             statusCode: 502,
             statusMessage: 'Identity logout failed.',
+            data: { localSessionCleared: true },
         })
     }
 

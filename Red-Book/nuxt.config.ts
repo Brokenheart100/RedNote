@@ -1,15 +1,13 @@
-import { getRedisConnectionOptions } from './config/redis'
-
-const redis = getRedisConnectionOptions()
-
 export default defineNuxtConfig({
   compatibilityDate: '2026-09-01',
 
   modules: [
     '@nuxt/ui',
+    '@nuxt/image',
     '@nuxt/content',
     'nuxt-auth-utils',
     '@pinia/nuxt',
+    '@vueuse/nuxt',
   ],
 
   components: [
@@ -18,6 +16,10 @@ export default defineNuxtConfig({
       pathPrefix: false,
     },
   ],
+  image: {
+    // Keep MinIO signatures and authenticated media redirects intact.
+    provider: 'none',
+  },
   icon: {
     serverBundle: {
       collections: ['lucide'],
@@ -35,33 +37,7 @@ export default defineNuxtConfig({
   nitro: {
     preset: 'node-server',
 
-    // storage: {
-    //   authTokens: {
-    //     driver: 'redis',
-    //     base: 'rednote:auth-tokens',
 
-    //     host: redis.host,
-    //     port: redis.port,
-
-    //     ...(redis.username
-    //       ? {
-    //         username: redis.username,
-    //       }
-    //       : {}),
-
-    //     ...(redis.password
-    //       ? {
-    //         password: redis.password,
-    //       }
-    //       : {}),
-
-    //     ...(redis.tls
-    //       ? {
-    //         tls: redis.tls,
-    //       }
-    //       : {}),
-    //   },
-    // },
   },
 
   runtimeConfig: {
@@ -71,7 +47,7 @@ export default defineNuxtConfig({
         60 * 60 * 24 * 7,
       cookie: {
         sameSite: 'lax',
-        secure: false,
+        secure: process.env.NODE_ENV === 'production',
       },
     },
 

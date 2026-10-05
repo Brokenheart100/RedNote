@@ -18,7 +18,7 @@ public static class UpdatePostEndpoint
 {
     private const int MaxTagCount = 10;
 
-    [WolverinePatch("/api/v1/posts/{postId:guid}")]
+    [WolverinePatch("/posts/{postId:guid}")]
     public static async Task<IResult> Patch(
         Guid postId,
         UpdatePostRequest request,
@@ -112,12 +112,8 @@ public static class UpdatePostEndpoint
          * Post
          */
 
-        var post =
-            await dbContext.Posts
-                .SingleOrDefaultAsync(
-                    post =>
-                        post.Id == postId,
-                    cancellationToken);
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+        var post = await PostWriteLock.AcquireAsync(dbContext, postId, cancellationToken);
 
         if (
             post is null
@@ -233,7 +229,8 @@ public static class UpdatePostEndpoint
                 likeCount,
                 commentCount,
                 post.CreatedAtUtc,
-                post.UpdatedAtUtc));
+                post.UpdatedAtUtc,
+                post.Revision));
 
         await outbox
             .SaveChangesAndFlushMessagesAsync(

@@ -74,9 +74,9 @@ async function toggleLike(): Promise<void> {
         <!-- 封面 -->
         <div class="relative overflow-hidden rounded-xl bg-muted">
             <div class="aspect-3/4 w-full">
-                <img v-if="cover" :src="cover.url" :alt="currentPost.title"
+                <NuxtImg v-if="cover" :src="cover.url" :alt="currentPost.title" densities="1"
                     class="size-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
-                    loading="lazy">
+                    loading="lazy" decoding="async" />
 
                 <div v-else class="flex size-full items-center justify-center">
                     <UIcon name="i-lucide-image" class="size-10 text-muted" />
@@ -104,7 +104,7 @@ async function toggleLike(): Promise<void> {
 
             <div class="flex min-w-0 items-center justify-between gap-3">
                 <div class="flex min-w-0 items-center gap-2" :title="authorName">
-                    <UAvatar :src="authorAvatarUrl" :alt="authorName" :text="authorAvatarFallback" size="xs"
+                    <UAvatar densities="1" :src="authorAvatarUrl" :alt="authorName" :text="authorAvatarFallback" size="xs"
                         class="shrink-0" />
 
                     <span class="min-w-0 truncate text-xs text-muted">

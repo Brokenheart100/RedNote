@@ -54,15 +54,19 @@ export function appendUpstreamSetCookies(
 export async function getIdentityCsrfContext(
     gatewayBaseUrl: string,
     requestId: string,
+    browserCookie?: string,
 ): Promise<IdentityCsrfContext> {
     const response = await $fetch.raw<CsrfResponse>(
         '/api/v1/auth/csrf',
         {
             baseURL: gatewayBaseUrl,
             method: 'GET',
+            timeout: 5_000,
+            retry: 0,
 
             headers: {
                 'X-Request-ID': requestId,
+                ...(browserCookie ? { Cookie: browserCookie } : {}),
             },
         },
     )
@@ -77,7 +81,7 @@ export async function getIdentityCsrfContext(
     }
 
     const setCookies = getUpstreamSetCookies(response.headers)
-    const cookieHeader = createUpstreamCookieHeader(setCookies)
+    const cookieHeader = createUpstreamCookieHeader(setCookies) || browserCookie || ''
 
     if (!cookieHeader) {
         throw createError({

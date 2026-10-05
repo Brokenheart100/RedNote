@@ -1,8 +1,4 @@
-export interface MediaUploadResponse extends Record<string, unknown> {
-    id: string
-    fileName: string
-    contentType: string
-    size: number
-    objectKey: string
-    createdAtUtc: string
-}
+import type { z } from 'zod'
+import type { mediaUploadResponseSchema } from '../schemas/media'
+
+export type MediaUploadResponse = z.output<typeof mediaUploadResponseSchema>

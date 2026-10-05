@@ -90,24 +90,6 @@ SERVICES: list[ServiceConfig] = [
             "Migrations"
         ),
     },
-    {
-        "name": "SearchService",
-        "project": (
-            ROOT
-            / "RedNote.SearchService"
-            / "RedNote.SearchService.csproj"
-        ),
-        "context": (
-            "RedNote.SearchService."
-            "Infrastructure.Persistence."
-            "SearchServiceDbContext"
-        ),
-        "output": (
-            "Infrastructure/"
-            "Persistence/"
-            "Migrations"
-        ),
-    },
 ]
 
 

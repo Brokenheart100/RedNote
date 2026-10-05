@@ -2,6 +2,7 @@ import Uppy from '@uppy/core'
 import XHRUpload from '@uppy/xhr-upload'
 
 import type { MediaUploadResponse } from '~~/shared/types/media'
+import { mediaUploadResponseSchema } from '~~/shared/schemas/media'
 
 export type UploadMeta = Record<string, unknown>
 
@@ -14,27 +15,11 @@ const DEFAULT_MAX_FILE_SIZE = 10 * 1024 * 1024
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const
 
 function parseUploadResponse(xhr: XMLHttpRequest): MediaUploadResponse {
-    const data = JSON.parse(xhr.responseText) as Partial<MediaUploadResponse>
-
-    if (
-        typeof data.id !== 'string'
-        || typeof data.fileName !== 'string'
-        || typeof data.contentType !== 'string'
-        || typeof data.size !== 'number'
-        || typeof data.objectKey !== 'string'
-        || typeof data.createdAtUtc !== 'string'
-    ) {
+    const result = mediaUploadResponseSchema.safeParse(JSON.parse(xhr.responseText))
+    if (!result.success) {
         throw new Error('Media upload response is invalid.')
     }
-
-    return {
-        id: data.id,
-        fileName: data.fileName,
-        contentType: data.contentType,
-        size: data.size,
-        objectKey: data.objectKey,
-        createdAtUtc: data.createdAtUtc,
-    }
+    return result.data
 }
 
 export function useImageUploader(options: UseImageUploaderOptions) {

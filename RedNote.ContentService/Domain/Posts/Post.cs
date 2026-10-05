@@ -53,6 +53,8 @@ public sealed class Post
 
     public PostStatus Status { get; private set; }
 
+    public long Revision { get; private set; } = 1;
+
     public DateTimeOffset CreatedAtUtc { get; private set; }
 
     public DateTimeOffset UpdatedAtUtc { get; private set; }
@@ -70,13 +72,17 @@ public sealed class Post
         Title = title.Trim();
         Content = content.Trim();
         UpdatedAtUtc = DateTimeOffset.UtcNow;
+        Revision++;
     }
 
     public void Delete()
     {
         Status = PostStatus.Deleted;
         UpdatedAtUtc = DateTimeOffset.UtcNow;
+        Revision++;
     }
+
+    public void RecordMetricsChange() => Revision++;
 }
 
 public enum PostStatus

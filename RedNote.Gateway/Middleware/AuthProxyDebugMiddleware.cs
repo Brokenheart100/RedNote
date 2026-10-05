@@ -1,105 +1,121 @@
 using System.Diagnostics;
-using Microsoft.Extensions.Primitives;
+using Yarp.ReverseProxy.Forwarder;
+using Yarp.ReverseProxy.Model;
 
 namespace RedNote.Gateway.Middleware;
 
 public sealed class AuthProxyDebugMiddleware(
     RequestDelegate next,
-    ILogger<AuthProxyDebugMiddleware> logger)
+    ILogger<AuthProxyDebugMiddleware> logger,
+    IConfiguration configuration)
 {
-    private readonly RequestDelegate _next = next;
-    private readonly ILogger<AuthProxyDebugMiddleware> _logger = logger;
-
     public async Task InvokeAsync(HttpContext context)
     {
         var request = context.Request;
-
-        var shouldLog =
-            request.Path.StartsWithSegments("/api/v1/auth")
+        var isAuthentication = request.Path.StartsWithSegments("/api/v1/auth")
             || request.Path.StartsWithSegments("/connect")
             || request.Path.StartsWithSegments("/.well-known");
-
-        if (!shouldLog)
+        var isApi = configuration.GetValue("Diagnostics:GatewayDebug:LogAllApiRequests", true)
+            && request.Path.StartsWithSegments("/api");
+        if (!isAuthentication && !isApi)
         {
-            await _next(context);
+            await next(context);
             return;
         }
 
-        var startedAt = Stopwatch.GetTimestamp();
+        var started = Stopwatch.GetTimestamp();
+        using var scope = logger.BeginScope(new Dictionary<string, object>
+        {
+            ["TraceId"] = context.TraceIdentifier,
+            ["RequestId"] = Clean(request.Headers["X-Request-ID"].ToString())
+        });
 
-        var hasIdentityCookie =
-            request.Cookies.ContainsKey("RedNote.Identity")
-            || request.Cookies.ContainsKey("__Host-RedNote.Identity");
+        logger.LogInformation(
+            "➡️ 🌐 [GATEWAY DEBUG] {Method} {Path} | TraceId={TraceId} | Scheme={Scheme} | Host={Host} | Origin={Origin} | ContentType={ContentType} | ContentLength={ContentLength}",
+            request.Method, request.Path, context.TraceIdentifier, request.Scheme,
+            Clean(request.Host.Value), SafeUrl(request.Headers.Origin.ToString()),
+            Clean(request.ContentType), request.ContentLength);
+        logger.LogInformation(
+            "🔀 📡 [GATEWAY DEBUG] ForwardedProto={ForwardedProto} | ForwardedHost={ForwardedHost} | RemoteIP={RemoteIP} | QueryKeys={QueryKeys}",
+            Clean(request.Headers["X-Forwarded-Proto"].ToString()),
+            Clean(request.Headers["X-Forwarded-Host"].ToString()),
+            context.Connection.RemoteIpAddress,
+            string.Join(", ", request.Query.Keys.Select(Clean)));
+        logger.LogInformation(
+            "🔐 🍪 [GATEWAY DEBUG] HasAuthorization={HasAuthorization} | HasCsrfToken={HasCsrfToken} | CookieCount={CookieCount} | CookieNames={CookieNames} | HasIdentityCookie={HasIdentityCookie}",
+            request.Headers.ContainsKey("Authorization"), request.Headers.ContainsKey("X-CSRF-TOKEN"),
+            request.Cookies.Count, string.Join(", ", request.Cookies.Keys.Select(Clean)),
+            request.Cookies.Keys.Any(IsIdentityCookie));
 
-        var origin = request.Headers.Origin.ToString();
-
-        _logger.LogInformation(
-            "➡️ [GATEWAY AUTH DEBUG] {Method} {Path} | Scheme={Scheme} | Host={Host} | Origin={Origin} | HasIdentityCookie={HasIdentityCookie} | CookieCount={CookieCount}",
-            request.Method,
-            request.Path + request.QueryString,
-            request.Scheme,
-            request.Host.Value,
-            string.IsNullOrWhiteSpace(origin) ? null : origin,
-            hasIdentityCookie,
-            request.Cookies.Count);
-
+        var pipelineFailed = false;
         try
         {
-            await _next(context);
+            await next(context);
+        }
+        catch (Exception exception)
+        {
+            pipelineFailed = true;
+            // Exception messages may contain upstream URLs or credentials.
+            logger.LogError(
+                "💥 [GATEWAY DEBUG] Pipeline failed | TraceId={TraceId} | ExceptionType={ExceptionType}",
+                context.TraceIdentifier, exception.GetType().Name);
+            throw;
         }
         finally
         {
-            var setCookies = context.Response.Headers.SetCookie;
-            var hasIdentitySetCookie = ContainsIdentityCookie(setCookies);
-            var hasAntiforgerySetCookie = ContainsAntiforgeryCookie(setCookies);
-
-            _logger.LogInformation(
-                "⬅️ [GATEWAY AUTH DEBUG] {Method} {Path} | StatusCode={StatusCode} | SetCookieCount={SetCookieCount} | HasIdentitySetCookie={HasIdentitySetCookie} | HasAntiforgerySetCookie={HasAntiforgerySetCookie} | DurationMs={DurationMs:F1}",
-                request.Method,
-                request.Path,
-                context.Response.StatusCode,
-                setCookies.Count,
-                hasIdentitySetCookie,
-                hasAntiforgerySetCookie,
-                Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds);
+            var proxy = context.Features.Get<IReverseProxyFeature>();
+            var forwarderError = context.Features.Get<IForwarderErrorFeature>();
+            logger.LogInformation(
+                "🎯 🚚 [GATEWAY DEBUG] Route={Route} | Cluster={Cluster} | Destination={Destination} | ForwarderError={ForwarderError} | IsAuthenticated={IsAuthenticated}",
+                proxy?.Route.Config.RouteId, proxy?.Cluster.Config.ClusterId,
+                SafeUrl(proxy?.ProxiedDestination?.Model.Config.Address),
+                forwarderError?.Error, context.User.Identity?.IsAuthenticated == true);
+            logger.LogInformation(
+                "⬅️ {Outcome} [GATEWAY DEBUG] {Method} {Path} | TraceId={TraceId} | StatusCode={StatusCode} | DurationMs={DurationMs:F1} | ContentType={ContentType} | Location={Location}",
+                pipelineFailed ? "💥" : context.Response.StatusCode >= 400 ? "⚠️" : "✅", request.Method,
+                request.Path, context.TraceIdentifier, context.Response.StatusCode,
+                Stopwatch.GetElapsedTime(started).TotalMilliseconds,
+                Clean(context.Response.ContentType), SafeUrl(context.Response.Headers.Location.ToString()));
+            foreach (var cookie in context.Response.Headers.SetCookie)
+            {
+                logger.LogInformation("📤 🍪 [GATEWAY DEBUG] SetCookie={CookieSummary}", SummarizeCookie(cookie));
+            }
         }
     }
 
-    private static bool ContainsIdentityCookie(StringValues headers)
+    private static bool IsIdentityCookie(string name) =>
+        name.Equals("RedNote.Identity", StringComparison.Ordinal)
+        || name.StartsWith("RedNote.IdentityC", StringComparison.Ordinal)
+        || name.Equals("__Host-RedNote.Identity", StringComparison.Ordinal);
+
+    private static string SummarizeCookie(string? header)
     {
-        foreach (var header in headers)
-        {
-            if (string.IsNullOrWhiteSpace(header))
-            {
-                continue;
-            }
-
-            if (header.StartsWith("RedNote.Identity=", StringComparison.OrdinalIgnoreCase)
-                || header.StartsWith("__Host-RedNote.Identity=", StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-        }
-
-        return false;
+        var parts = (header ?? string.Empty).Split(';', StringSplitOptions.TrimEntries);
+        var name = parts[0].Split('=', 2)[0];
+        var attributes = parts.Skip(1).Select(part => part.Split('=', 2)[0]).ToArray();
+        var sameSite = parts.Skip(1)
+            .FirstOrDefault(part => part.StartsWith("SameSite=", StringComparison.OrdinalIgnoreCase))?
+            .Split('=', 2)[1];
+        var safeSameSite = sameSite?.ToUpperInvariant() is "LAX" or "STRICT" or "NONE" ? sameSite : "-";
+        return $"{Clean(name)}=<redacted>; Secure={attributes.Contains("Secure", StringComparer.OrdinalIgnoreCase)}; HttpOnly={attributes.Contains("HttpOnly", StringComparer.OrdinalIgnoreCase)}; SameSite={safeSameSite}; Attributes=[{string.Join(", ", attributes.Select(Clean))}]";
     }
 
-    private static bool ContainsAntiforgeryCookie(StringValues headers)
+    private static string SafeUrl(string? value)
     {
-        foreach (var header in headers)
+        if (string.IsNullOrEmpty(value)) return "-";
+        if (Uri.TryCreate(value, UriKind.Absolute, out var uri)
+            && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
         {
-            if (string.IsNullOrWhiteSpace(header))
-            {
-                continue;
-            }
-
-            if (header.StartsWith("RedNote.Antiforgery=", StringComparison.OrdinalIgnoreCase)
-                || header.StartsWith("__Host-RedNote.Antiforgery=", StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
+            return Clean(uri.GetComponents(UriComponents.SchemeAndServer | UriComponents.Path, UriFormat.UriEscaped));
         }
+        // Relative OIDC redirects may include authorization codes and state.
+        return Clean(value.Split('?', '#')[0]);
+    }
 
-        return false;
+    private static string Clean(string? value)
+    {
+        if (string.IsNullOrEmpty(value)) return "-";
+        var cleaned = value.Replace('\r', ' ').Replace('\n', ' ');
+        return cleaned.Length > 300 ? cleaned[..300] : cleaned;
     }
 }

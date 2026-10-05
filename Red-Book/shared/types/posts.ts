@@ -1,3 +1,6 @@
+import type { z } from 'zod'
+import type { postSchema } from '../schemas/requests'
+
 export interface PostMediaResponse {
     id: string
     fileName: string
@@ -43,12 +46,7 @@ export interface LikedPostsResponse {
     items: PostResponse[]
 }
 
-export interface CreatePostRequest {
-    title: string
-    content: string
-    mediaIds: string[]
-    tags: string[]
-}
+export type CreatePostRequest = z.output<typeof postSchema>
 
 export interface CommentAuthorResponse {
     userId: string

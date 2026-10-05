@@ -6,6 +6,27 @@ export const usePostStore = defineStore('posts', () => {
     const postsById = ref<Record<string, PostResponse>>({})
     const likePendingById = ref<Record<string, boolean>>({})
     const favoritePendingById = ref<Record<string, boolean>>({})
+    const deletedPostIds = ref<Record<string, boolean>>({})
+    const deletePendingById = ref<Record<string, boolean>>({})
+    let generation = 0
+
+    const isDeleted = (postId: string) => deletedPostIds.value[postId] === true
+    const isDeletePending = (postId: string) => deletePendingById.value[postId] === true
+
+    async function deletePost(postId: string): Promise<void> {
+        if (isDeletePending(postId) || isDeleted(postId)) return
+        const startedGeneration = generation
+        deletePendingById.value[postId] = true
+        try {
+            await $fetch(`/api/posts/${encodeURIComponent(postId)}`, { method: 'DELETE', retry: 0 })
+            if (generation !== startedGeneration) return
+            deletedPostIds.value[postId] = true
+            delete postsById.value[postId]
+        }
+        finally {
+            if (generation === startedGeneration) delete deletePendingById.value[postId]
+        }
+    }
 
     function getPost(postId: string): PostResponse | undefined {
         return postsById.value[postId]
@@ -30,6 +51,7 @@ export const usePostStore = defineStore('posts', () => {
     }
 
     function upsertPost(post: PostResponse): void {
+        if (isDeleted(post.id)) return
         const current = postsById.value[post.id]
         const next = clonePost(post)
 
@@ -138,6 +160,9 @@ export const usePostStore = defineStore('posts', () => {
     }
 
     function clear(): void {
+        generation++
+        deletedPostIds.value = {}
+        deletePendingById.value = {}
         postsById.value = {}
         likePendingById.value = {}
         favoritePendingById.value = {}
@@ -147,6 +172,7 @@ export const usePostStore = defineStore('posts', () => {
         postsById,
 
         getPost,
+        isDeleted, isDeletePending, deletePost,
         upsertPost,
         upsertPosts,
         patchPost,

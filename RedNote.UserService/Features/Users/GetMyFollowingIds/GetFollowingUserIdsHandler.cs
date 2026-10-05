@@ -1,4 +1,3 @@
-using Microsoft.EntityFrameworkCore;
 using RedNote.Contracts.Users;
 using RedNote.UserService.Infrastructure.Persistence;
 
@@ -18,12 +17,8 @@ public static class GetFollowingUserIdsHandler
                 nameof(request));
         }
 
-        var userIds = await dbContext.UserFollows
-            .AsNoTracking()
-            .Where(follow => follow.FollowerUserId == request.UserId)
-            .OrderBy(follow => follow.CreatedAtUtc)
-            .Select(follow => follow.FollowingUserId)
-            .ToListAsync(cancellationToken);
+        var userIds = await FollowingIdsQuery.LoadAsync(
+            dbContext, request.UserId, cancellationToken);
 
         return new GetFollowingUserIdsResponse
         {

@@ -5,7 +5,7 @@ export default defineEventHandler(
         }
 
         const requestId =
-            crypto.randomUUID()
+            event.context.requestId ?? crypto.randomUUID()
 
         const startedAt =
             performance.now()
@@ -50,10 +50,6 @@ export default defineEventHandler(
                 requestId,
                 method,
                 path,
-
-                query:
-                    requestUrl.search
-                    || undefined,
 
                 hasCookie,
                 hasAuthorization,

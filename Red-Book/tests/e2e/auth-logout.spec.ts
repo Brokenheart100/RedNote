@@ -100,7 +100,7 @@ test(
         expect(
             cookieNamesBefore,
         ).toContain(
-            '__Host-RedNote.Identity',
+            'RedNote.Identity',
         )
 
         /*
@@ -321,7 +321,7 @@ test(
         expect(
             cookieNamesAfter,
         ).not.toContain(
-            '__Host-RedNote.Identity',
+            'RedNote.Identity',
         )
 
         /*

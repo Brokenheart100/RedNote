@@ -5,7 +5,6 @@ using RedNote.ContentService.Features.Users.ProjectUserProfile;
 using RedNote.ContentService.Infrastructure.Persistence;
 using RedNote.Contracts.Content;
 using RedNote.Contracts.Media;
-using RedNote.Contracts.Users;
 using ServiceDefaults;
 using Wolverine;
 using Wolverine.EntityFrameworkCore;
@@ -30,20 +29,14 @@ builder.Services.AddDbContext<ContentServiceDbContext>(options =>
 builder.Services.AddRedNoteJwtAuthentication(builder.Configuration);
 
 
-builder.Services.AddWolverineGrpcClient<IUserGrpcService>(options =>
-{
-    options.Address = new Uri("https://localhost:7135");
-});
-
 builder.Services.AddWolverineGrpcClient<IMediaGrpcService>(options =>
 {
-    options.Address = new Uri("https://localhost:7207");
+    options.Address = new Uri(builder.Configuration["Grpc:MediaAddress"]
+        ?? throw new InvalidOperationException("Grpc:MediaAddress was not configured."));
 });
 
 builder.Services.AddScoped<PostResponseQueryService>();
 builder.Services.AddWolverineHttp();
-
-var handlerReport = string.Empty;
 
 builder.Host.UseWolverine(options =>
 {
@@ -54,7 +47,6 @@ builder.Host.UseWolverine(options =>
 
     options.CodeGeneration.AlwaysUseServiceLocationFor<ContentServiceDbContext>();
     options.CodeGeneration.AlwaysUseServiceLocationFor<IMediaGrpcService>();
-    options.CodeGeneration.AlwaysUseServiceLocationFor<IUserGrpcService>();
 
     options.PersistMessagesWithPostgresql(connectionString);
     options.UseEntityFrameworkCoreTransactions();
@@ -83,17 +75,9 @@ builder.Host.UseWolverine(options =>
         .ToRabbitExchange("content-events")
         .UseDurableOutbox();
 
-    handlerReport = options.DescribeHandlerMatch(typeof(UserProfileChangedHandler));
 });
 
 var app = builder.Build();
-
-if (app.Environment.IsDevelopment())
-{
-    app.Logger.LogInformation(
-        "🐺 UserProfileChangedHandler discovery report:\n{HandlerReport}",
-        handlerReport);
-}
 
 app.UseAuthentication();
 app.UseAuthorization();

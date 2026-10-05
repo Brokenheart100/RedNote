@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using RedNote.ContentService.Domain.Posts;
+using RedNote.ContentService.Features.Posts.Common;
 using RedNote.ContentService.Infrastructure.Persistence;
 using RedNote.Contracts.Content;
 using Wolverine.EntityFrameworkCore;
@@ -36,17 +37,10 @@ public static class LikePostEndpoint
             return Results.Unauthorized();
         }
 
-        var postExists =
-            await dbContext.Posts
-                .AsNoTracking()
-                .AnyAsync(
-                    post =>
-                        post.Id == postId
-                        && post.Status !=
-                            PostStatus.Deleted,
-                    cancellationToken);
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+        var post = await PostWriteLock.AcquireAsync(dbContext, postId, cancellationToken);
 
-        if (!postExists)
+        if (post is null || post.Status == PostStatus.Deleted)
         {
             return Results.NotFound();
         }
@@ -96,11 +90,13 @@ public static class LikePostEndpoint
                             PostCommentStatus.Published,
                     cancellationToken);
 
+        post.RecordMetricsChange();
         await outbox.PublishAsync(
             new PostMetricsChanged(
                 postId,
                 likeCount,
-                commentCount));
+                commentCount,
+                post.Revision));
 
         await outbox
             .SaveChangesAndFlushMessagesAsync(

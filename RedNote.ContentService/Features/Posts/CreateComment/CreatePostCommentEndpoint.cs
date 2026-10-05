@@ -52,15 +52,10 @@ public static class CreatePostCommentEndpoint
 
         var dbContext = outbox.DbContext;
 
-        var postExists = await dbContext.Posts
-            .AsNoTracking()
-            .AnyAsync(
-                post =>
-                    post.Id == postId
-                    && post.Status == PostStatus.Published,
-                cancellationToken);
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+        var post = await PostWriteLock.AcquireAsync(dbContext, postId, cancellationToken);
 
-        if (!postExists)
+        if (post is null || post.Status != PostStatus.Published)
         {
             return Results.NotFound();
         }
@@ -112,10 +107,6 @@ public static class CreatePostCommentEndpoint
             content,
             request.ParentCommentId);
 
-        /*
-         * 原来的代码这里 Add 了两次。
-         * 只需要一次。
-         */
         dbContext.PostComments.Add(comment);
 
         var likeCount = await dbContext.PostLikes
@@ -138,11 +129,13 @@ public static class CreatePostCommentEndpoint
 
         var commentCount = existingCommentCount + 1;
 
+        post.RecordMetricsChange();
         await outbox.PublishAsync(
             new PostMetricsChanged(
                 postId,
                 likeCount,
-                commentCount));
+                commentCount,
+                post.Revision));
 
         /*
          * Comment + Wolverine Outbox message 一次提交。

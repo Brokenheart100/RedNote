@@ -3,6 +3,11 @@
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
   </PropertyGroup>
   <ItemGroup>
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageVersion Include="xunit" Version="2.9.3" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />
+    <PackageVersion Include="SkiaSharp" Version="3.119.4" />
+    <PackageVersion Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="3.119.4" />
     <!-- AWS -->
     <PackageVersion
       Include="AWSSDK.S3"
@@ -22,9 +27,6 @@
       Include="Aspire.Hosting.Redis"
       Version="13.5.4" />
     <!-- Aspire client integrations：供各业务服务使用 -->
-    <PackageVersion
-      Include="Aspire.Npgsql"
-      Version="13.5.4" />
     <PackageVersion
       Include="Aspire.Npgsql.EntityFrameworkCore.PostgreSQL"
       Version="13.5.4" />
@@ -52,15 +54,10 @@
       Include="OpenIddict.AspNetCore"
       Version="7.6.0" />
     <PackageVersion
-      Include="OpenIddict.Validation.AspNetCore"
-      Version="7.6.0" />
-    <PackageVersion
       Include="OpenIddict.EntityFrameworkCore"
       Version="7.6.0" />
-    <PackageVersion
-      Include="OpenIddict.Validation.SystemNetHttp"
-      Version="7.6.0" />
     <!-- Entity Framework Core -->
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.12" />
     <PackageVersion
       Include="Microsoft.EntityFrameworkCore"
       Version="10.0.12" />
@@ -107,10 +104,6 @@
     <PackageVersion
       Include="OpenTelemetry.Instrumentation.Runtime"
       Version="1.17.0" />
-    <!-- ASP.NET Core -->
-    <PackageVersion
-      Include="Microsoft.AspNetCore.OpenApi"
-      Version="10.0.10" />
     <!-- OpenSearch -->
     <PackageVersion
       Include="OpenSearch.Net"

@@ -4,6 +4,7 @@ import type { SearchPostsResponse } from '~~/shared/types/search'
 
 const route = useRoute()
 const postStore = usePostStore()
+const requestFetch = useRequestFetch()
 
 const pageSize = 20
 
@@ -31,7 +32,7 @@ const {
     refresh,
 } = await useAsyncData(
     'post-search',
-    async (): Promise<SearchPostsResponse> => {
+    async (_nuxtApp, { signal }): Promise<SearchPostsResponse> => {
         if (!keyword.value) {
             return {
                 page: 1,
@@ -41,7 +42,8 @@ const {
             }
         }
 
-        return await $fetch<SearchPostsResponse>('/api/posts/search', {
+        return await requestFetch<SearchPostsResponse>('/api/posts/search', {
+            signal,
             query: {
                 q: keyword.value,
                 page: page.value,
@@ -71,10 +73,11 @@ watch(
 const posts = computed<PostResponse[]>(() => {
     const items = data.value?.items ?? []
 
-    return items.map(post => postStore.getPost(post.id) ?? post)
+    return items.filter(post => !postStore.isDeleted(post.id)).map(post => postStore.getPost(post.id) ?? post)
 })
 
-const totalCount = computed(() => data.value?.totalCount ?? 0)
+const totalCount = computed(() => Math.max(0, (data.value?.totalCount ?? 0)
+    - (data.value?.items.filter(post => postStore.isDeleted(post.id)).length ?? 0)))
 
 const totalPages = computed(() => Math.max(
     1,

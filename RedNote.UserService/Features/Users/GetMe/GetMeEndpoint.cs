@@ -40,11 +40,6 @@ public static class GetMeEndpoint
         var tokenDisplayName = Normalize(
             user.FindFirstValue("name"));
 
-        logger.LogInformation(
-            "🔐 [GET ME] Token claims | Sub={Sub} | Name={Name}",
-            subject,
-            tokenDisplayName);
-
         var dbContext = outbox.DbContext;
 
         var profile =
@@ -52,13 +47,6 @@ public static class GetMeEndpoint
                 .SingleOrDefaultAsync(
                     profile => profile.UserId == userId,
                     cancellationToken);
-
-        logger.LogInformation(
-            "👤 [GET ME] Profile lookup | UserId={UserId} | Exists={Exists} | Nickname={Nickname} | AvatarUrl={AvatarUrl}",
-            userId,
-            profile is not null,
-            profile?.Nickname,
-            profile?.AvatarUrl);
 
         var profileChanged = false;
 
@@ -92,12 +80,6 @@ public static class GetMeEndpoint
 
         if (profileChanged)
         {
-            logger.LogInformation(
-                "📤 [GET ME] 准备发布 UserProfileChanged | UserId={UserId} | Nickname={Nickname} | AvatarUrl={AvatarUrl}",
-                profile.UserId,
-                profile.Nickname,
-                profile.AvatarUrl);
-
             await outbox.PublishAsync(
                 new UserProfileChanged(
                     profile.UserId,
@@ -105,15 +87,11 @@ public static class GetMeEndpoint
                     profile.AvatarUrl,
                     profile.UpdatedAtUtc));
 
-            logger.LogInformation(
-                "📦 [GET ME] UserProfileChanged 已加入 Outbox | UserId={UserId}",
-                profile.UserId);
-
             await outbox.SaveChangesAndFlushMessagesAsync(
                 cancellationToken);
 
-            logger.LogInformation(
-                "✅ [GET ME] Outbox flush 完成 | UserId={UserId}",
+            logger.LogDebug(
+                "User profile initialized or completed. UserId={UserId}",
                 profile.UserId);
         }
 

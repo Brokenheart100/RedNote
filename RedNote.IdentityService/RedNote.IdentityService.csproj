@@ -20,7 +20,6 @@
     </PackageReference>
     <PackageReference Include="OpenIddict.AspNetCore" />
     <PackageReference Include="OpenIddict.EntityFrameworkCore" />
-    <PackageReference Include="OpenIddict.Validation.SystemNetHttp" />
     <PackageReference Include="WolverineFx.Http" />
     <PackageReference Include="WolverineFx.RuntimeCompilation" />
   </ItemGroup>

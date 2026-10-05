@@ -1,6 +1,7 @@
 <script setup lang="ts">
+import { parseProfile } from '~~/shared/schemas/requests'
+import { getRequestValidationMessage } from '~/utils/request-validation'
 import type {
-    UpdateMeRequest,
     UpdateMeResponse,
 } from '~~/shared/types/users'
 
@@ -20,6 +21,7 @@ import type {
 
 
 const postStore = usePostStore()
+const requestFetch = useRequestFetch()
 
 const likedPostsPageSize = 20
 
@@ -32,7 +34,7 @@ const {
     refresh: refreshLikedPosts,
 } = await useAsyncData(
     'my-liked-posts',
-    () => $fetch<LikedPostsResponse>('/api/posts/liked', {
+    () => requestFetch<LikedPostsResponse>('/api/posts/liked', {
         query: {
             page: likedPostsPage.value,
             pageSize: likedPostsPageSize,
@@ -59,6 +61,7 @@ const likedPosts = computed<PostResponse[]>(() => {
     const items = likedPostsData.value?.items ?? []
 
     return items
+        .filter(post => !postStore.isDeleted(post.id))
         .map(post => postStore.getPost(post.id) ?? post)
         .filter(post => post.isLiked)
 })
@@ -68,7 +71,7 @@ const removedLikedPostCount = computed(() => {
 
     return items.reduce((count, post) => {
         const current = postStore.getPost(post.id) ?? post
-        return count + (current.isLiked ? 0 : 1)
+        return count + (postStore.isDeleted(post.id) || !current.isLiked ? 1 : 0)
     }, 0)
 })
 
@@ -83,12 +86,6 @@ const likedPostsTotalPages = computed(() => Math.max(
     1,
     Math.ceil(likedPostsTotalCount.value / likedPostsPageSize),
 ))
-
-const hasPreviousLikedPostsPage = computed(() => likedPostsPage.value > 1)
-
-const hasNextLikedPostsPage = computed(
-    () => likedPostsPage.value < likedPostsTotalPages.value,
-)
 
 function goToLikedPostsPage(page: number): void {
     if (
@@ -110,6 +107,9 @@ const {
     refreshCurrentUser,
 } = useCurrentUser()
 
+// Wait before SSR rendering so pending attributes match the hydrated user data.
+await fetchCurrentUser()
+
 const {
     uppy: avatarUppy,
     removeAllFiles: removeAllAvatarFiles,
@@ -129,14 +129,6 @@ const avatarUrl = ref('')
 const bio = ref('')
 
 const avatarFileInput = ref<HTMLInputElement | null>(null)
-
-async function loadCurrentUser(): Promise<void> {
-    if (user.value) {
-        return
-    }
-
-    await fetchCurrentUser()
-}
 
 function openEditProfile(): void {
     if (!user.value) {
@@ -253,13 +245,12 @@ async function saveProfile(): Promise<void> {
     editPending.value = true
     editError.value = null
 
-    const request: UpdateMeRequest = {
-        nickname: nickname.value.trim() || null,
-        avatarUrl: avatarUrl.value.trim() || null,
-        bio: bio.value.trim() || null,
-    }
-
     try {
+        const request = parseProfile({
+            nickname: nickname.value,
+            avatarUrl: avatarUrl.value,
+            bio: bio.value,
+        })
         const result = await $fetch<UpdateMeResponse>(
             '/api/users/me',
             {
@@ -281,7 +272,11 @@ async function saveProfile(): Promise<void> {
     catch (error: unknown) {
         const status = getApiErrorStatus(error)
 
-        if (status === 401) {
+        const validationMessage = getRequestValidationMessage(error)
+        if (validationMessage) {
+            editError.value = validationMessage
+        }
+        else if (status === 401) {
             editError.value = '登录状态已失效，请重新登录。'
         }
         else if (status === 400) {
@@ -313,10 +308,6 @@ async function handleRefresh(): Promise<void> {
         refreshLikedPosts(),
     ])
 }
-
-onMounted(async () => {
-    await loadCurrentUser()
-})
 
 onBeforeUnmount(() => {
     destroyAvatarUploader()
@@ -383,7 +374,7 @@ onBeforeUnmount(() => {
                 <form class="space-y-5" @submit.prevent="saveProfile">
                     <UFormField label="头像" description="支持 JPEG、PNG、WebP，最大 10 MB">
                         <div class="flex items-center gap-4">
-                            <UAvatar :src="avatarUrl || undefined" :alt="nickname || '头像'" size="3xl" />
+                            <UAvatar densities="1" :src="avatarUrl || undefined" :alt="nickname || '头像'" size="3xl" />
 
                             <div>
                                 <input ref="avatarFileInput" type="file" accept="image/jpeg,image/png,image/webp"

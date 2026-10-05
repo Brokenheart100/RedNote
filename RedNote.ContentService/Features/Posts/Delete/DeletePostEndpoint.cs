@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using RedNote.ContentService.Domain.Posts;
+using RedNote.ContentService.Features.Posts.Common;
 using RedNote.ContentService.Infrastructure.Persistence;
 using RedNote.Contracts.Content;
 using Wolverine.EntityFrameworkCore;
@@ -36,12 +37,8 @@ public static class DeletePostEndpoint
             return Results.Unauthorized();
         }
 
-        var post =
-            await dbContext.Posts
-                .SingleOrDefaultAsync(
-                    post =>
-                        post.Id == postId,
-                    cancellationToken);
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+        var post = await PostWriteLock.AcquireAsync(dbContext, postId, cancellationToken);
 
         if (
             post is null
@@ -63,7 +60,8 @@ public static class DeletePostEndpoint
         await outbox.PublishAsync(
             new PostDeleted(
                 post.Id,
-                DateTimeOffset.UtcNow));
+                post.UpdatedAtUtc,
+                post.Revision));
 
         await outbox
             .SaveChangesAndFlushMessagesAsync(

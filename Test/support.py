@@ -26,6 +26,9 @@ SCOPE = (
 
 DEFAULT_PASSWORD = "Test1234"
 
+# Real, decodable fixture; a JPEG marker sequence is not a valid image.
+JPEG_BYTES = (Path(__file__).parent / "fixtures" / "upload.jpg").read_bytes()
+
 
 @dataclass(frozen=True)
 class AuthenticatedUser:

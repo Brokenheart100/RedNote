@@ -1,8 +1,3 @@
-export interface CsrfResponse {
-    token: string
-    headerName: string
-}
-
 export interface DevelopmentLogin {
     email: string
     password: string
@@ -33,29 +28,6 @@ export function createAuthRoute(
         }
 }
 
-export async function getCsrfToken(
-    apiBaseUrl: string,
-): Promise<CsrfResponse> {
-    return $fetch<CsrfResponse>(
-        '/api/v1/auth/csrf',
-        {
-            baseURL: apiBaseUrl,
-            credentials: 'include',
-        },
-    )
-}
-
-// export async function getCsrfToken(): Promise<CsrfResponse> {
-//     return await $fetch<CsrfResponse>('/api/v1/auth/csrf', {
-//         method: 'GET',
-//         credentials: 'include',
-//         cache: 'no-store',
-//         headers: {
-//             Accept: 'application/json',
-//         },
-//     })
-// }
-
 export function storeDevelopmentLogin(
     login: DevelopmentLogin,
 ): void {
@@ -80,7 +52,7 @@ export function consumeDevelopmentLogin():
         return null
     }
 
-    let value: string | null = null
+    let value: string | null
 
     try {
         value = sessionStorage.getItem(
@@ -124,8 +96,7 @@ export function consumeDevelopmentLogin():
 export function createDevelopmentRandomText(
     length: number,
 ): string {
-    const characters =
-        'abcdefghijklmnopqrstuvwxyz0123456789'
+    const characters = 'abcdefghijklmnopqrstuvwxyz0123456789'
 
     return Array.from(
         { length },

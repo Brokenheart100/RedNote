@@ -1,12 +1,6 @@
-import type { MediaUploadResponse } from '~~/shared/types/media'
-
 import {
     useImageUploader,
-    type UploadMeta,
 } from '~/composables/useImageUploader'
-
-export type { MediaUploadResponse } from '~~/shared/types/media'
-export type { UploadMeta } from '~/composables/useImageUploader'
 
 const MAX_IMAGE_COUNT = 9
 

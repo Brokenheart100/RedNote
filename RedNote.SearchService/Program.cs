@@ -1,11 +1,8 @@
-using Microsoft.EntityFrameworkCore;
 using OpenSearch.Client;
 using OpenSearch.Net;
 using RedNote.SearchService.Infrastructure.OpenSearch;
-using RedNote.SearchService.Infrastructure.Persistence;
 using ServiceDefaults;
 using Wolverine;
-using Wolverine.ErrorHandling;
 using Wolverine.Http;
 using Wolverine.Http.ApiVersioning;
 using Wolverine.Postgresql;
@@ -37,16 +34,11 @@ builder.Services.AddSingleton<IOpenSearchClient>(
 
 builder.Services.AddSingleton<OpenSearchIndexInitializer>();
 
+// PostgreSQL remains the durable inbox store; search documents live in OpenSearch.
 var searchDatabaseConnectionString =
     builder.Configuration.GetConnectionString("searchdb")
     ?? throw new InvalidOperationException(
         "Connection string 'searchdb' is not configured.");
-
-builder.Services.AddDbContext<SearchServiceDbContext>(
-    options =>
-    {
-        options.UseNpgsql(searchDatabaseConnectionString);
-    });
 
 builder.Host.UseWolverine(options =>
 {
