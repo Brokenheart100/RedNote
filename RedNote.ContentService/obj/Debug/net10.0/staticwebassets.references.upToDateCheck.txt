@@ -1,2 +1,0 @@
-D:\Code\CSharp\RedNote\RedNote.Contracts\obj\Debug\net10.0\staticwebassets.build.json
-D:\Code\CSharp\RedNote\RedNote.Contracts\obj\Debug\net10.0\staticwebassets.build.json
