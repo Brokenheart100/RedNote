@@ -6,6 +6,7 @@ using OpenIddict.Abstractions;
 using OpenIddict.Server.AspNetCore;
 using RedNote.IdentityService.Domain.Users;
 using Wolverine.Http;
+using RedNote.IdentityService.Infrastructure.OpenIddict;
 
 using static OpenIddict.Abstractions.OpenIddictConstants;
 
@@ -29,6 +30,8 @@ public static class AuthorizeEndpoint
         var result =
             await context.AuthenticateAsync(
                 IdentityConstants.ApplicationScheme);
+        var adminClient = request.ClientId == AdminIdentity.ClientId;
+        if (!adminClient && request.GetScopes().Contains(AdminIdentity.Scope)) return Results.Forbid();
 
         /*
          * 当前用户尚未登录。
@@ -39,6 +42,7 @@ public static class AuthorizeEndpoint
         if (
             !result.Succeeded
             || result.Principal is null
+            || (adminClient && !AdminIdentity.FreshMfa(result.Principal))
         )
         {
             var publicBaseUrl =
@@ -49,7 +53,7 @@ public static class AuthorizeEndpoint
             var loginUri =
                 GetRequiredAbsoluteUri(
                     configuration,
-                    "OpenIddict:Clients:RedNoteWeb:LoginUri");
+                    adminClient ? "OpenIddict:Clients:RedNoteAdmin:LoginUri" : "OpenIddict:Clients:RedNoteWeb:LoginUri");
 
             var authorizationUrl =
                 BuildAuthorizationUrl(
@@ -73,6 +77,8 @@ public static class AuthorizeEndpoint
         {
             return Results.Unauthorized();
         }
+        if (adminClient && (!request.GetScopes().Contains(AdminIdentity.Scope) || !await AdminIdentity.EligibleAsync(user, userManager)))
+            return Results.Forbid();
 
         /*
          * 使用 ASP.NET Core Identity 创建完整 Principal。
@@ -110,6 +116,7 @@ public static class AuthorizeEndpoint
 
         principal.SetResources(
             "rednote-api");
+        if (adminClient) AdminIdentity.SetClaims(principal, user, result.Principal.FindFirst(AdminIdentity.MfaTime)!.Value);
 
         /*
          * SecurityStamp 可以存在于 authorization code /

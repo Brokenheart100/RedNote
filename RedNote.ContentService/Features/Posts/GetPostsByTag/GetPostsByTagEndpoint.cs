@@ -16,9 +16,7 @@ public static class GetPostsByTagEndpoint
 {
     [WolverineGet("/posts/tags/{tagName}")]
     public static async Task<IResult> Get(
-        string tagName,
-        int page,
-        int pageSize,
+        [AsParameters] TaggedPageQuery paging,
         ClaimsPrincipal principal,
         [FromServices]
         PostResponseQueryService postResponseQueryService,
@@ -26,37 +24,8 @@ public static class GetPostsByTagEndpoint
         ContentServiceDbContext dbContext,
         CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(
-                tagName))
-        {
-            return ValidationProblem(
-                "tagName",
-                "Tag name is required.");
-        }
-
-        var normalizedTagName =
-            tagName.Trim();
-
-        if (normalizedTagName.Length > 30)
-        {
-            return ValidationProblem(
-                "tagName",
-                "Tag name cannot exceed 30 characters.");
-        }
-
-        if (page < 1)
-        {
-            return ValidationProblem(
-                "page",
-                "Page must be greater than or equal to 1.");
-        }
-
-        if (pageSize is < 1 or > 100)
-        {
-            return ValidationProblem(
-                "pageSize",
-                "PageSize must be between 1 and 100.");
-        }
+        var (page, pageSize) = (paging.Page, paging.PageSize);
+        var normalizedTagName = paging.TagName!.Trim();
 
         var query =
             dbContext.PostTags
@@ -78,7 +47,7 @@ public static class GetPostsByTagEndpoint
                 .Where(
                     post =>
                         post.Status ==
-                        PostStatus.Published);
+                        PostStatus.Published && !post.IsHidden);
 
         var totalCount =
             await query.CountAsync(
@@ -137,17 +106,4 @@ public static class GetPostsByTagEndpoint
             });
     }
 
-    private static IResult ValidationProblem(
-        string key,
-        string message)
-    {
-        return Results.ValidationProblem(
-            new Dictionary<string, string[]>
-            {
-                [key] =
-                [
-                    message
-                ]
-            });
-    }
 }

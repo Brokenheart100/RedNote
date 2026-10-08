@@ -12,36 +12,21 @@ namespace RedNote.ContentService.Features.Posts.GetComments;
 [AllowAnonymous]
 public static class GetPostCommentsEndpoint
 {
-    private const int MaxPageSize = 100;
 
     [WolverineGet("/posts/{postId:guid}/comments")]
     public static async Task<IResult> Get(
         Guid postId,
-        int page,
-        int pageSize,
+        [AsParameters] PageQuery paging,
         ContentServiceDbContext dbContext,
         CancellationToken cancellationToken)
     {
-        if (page < 1)
-        {
-            return ValidationProblem(
-                "page",
-                "Page must be greater than or equal to 1.");
-        }
-
-        if (pageSize is < 1 or > MaxPageSize)
-        {
-            return ValidationProblem(
-                "pageSize",
-                $"PageSize must be between 1 and {MaxPageSize}.");
-        }
-
+        var (page, pageSize) = (paging.Page, paging.PageSize);
         var postExists = await dbContext.Posts
             .AsNoTracking()
             .AnyAsync(
                 post =>
                     post.Id == postId
-                    && post.Status == PostStatus.Published,
+                    && post.Status == PostStatus.Published && !post.IsHidden,
                 cancellationToken);
 
         if (!postExists)
@@ -55,7 +40,7 @@ public static class GetPostCommentsEndpoint
                 comment =>
                     comment.PostId == postId
                     && comment.ParentCommentId == null
-                    && comment.Status == PostCommentStatus.Published);
+                    && comment.Status == PostCommentStatus.Published && !comment.IsHidden && !comment.IsParentHidden);
 
         var totalCount = await topLevelQuery
             .CountAsync(cancellationToken);
@@ -123,7 +108,7 @@ public static class GetPostCommentsEndpoint
             where
                 reply.ParentCommentId.HasValue
                 && commentIds.Contains(reply.ParentCommentId.Value)
-                && reply.Status == PostCommentStatus.Published
+                && reply.Status == PostCommentStatus.Published && !reply.IsHidden && !reply.IsParentHidden
 
             orderby
                 reply.CreatedAtUtc,
@@ -201,17 +186,6 @@ public static class GetPostCommentsEndpoint
             comment.AuthorUserId,
             comment.AuthorNickname,
             comment.AuthorAvatarUrl);
-    }
-
-    private static IResult ValidationProblem(
-        string key,
-        string message)
-    {
-        return Results.ValidationProblem(
-            new Dictionary<string, string[]>
-            {
-                [key] = [message]
-            });
     }
 
     private sealed record CommentReadModel(

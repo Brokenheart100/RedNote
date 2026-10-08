@@ -75,3 +75,11 @@ export interface PostCommentsResponse {
     totalCount: number
     items: PostCommentItem[]
 }
+
+export interface RecommendationFeedResponse {
+    items: PostResponse[]
+    nextCursor: string | null
+    hasMore: boolean
+    requestId: string
+    strategy: 'gorse' | 'latest'
+}

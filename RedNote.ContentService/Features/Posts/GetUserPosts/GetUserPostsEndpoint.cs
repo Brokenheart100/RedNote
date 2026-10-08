@@ -14,36 +14,21 @@ namespace RedNote.ContentService.Features.Posts.GetUserPosts;
 [AllowAnonymous]
 public static class GetUserPostsEndpoint
 {
-    private const int MaxPageSize = 100;
 
     [WolverineGet("/posts")]
     public static async Task<IResult> Get(
-        Guid authorUserId,
-        int page,
-        int pageSize,
+        [AsParameters] AuthorPostsQuery paging,
         ClaimsPrincipal principal,
         [FromServices] PostResponseQueryService postResponseQueryService,
         [FromServices] ContentServiceDbContext dbContext,
         CancellationToken cancellationToken)
     {
-        if (authorUserId == Guid.Empty)
-        {
-            return ValidationProblem("authorUserId", "Author user id cannot be empty.");
-        }
-
-        if (page < 1)
-        {
-            return ValidationProblem("page", "Page must be greater than or equal to 1.");
-        }
-
-        if (pageSize is < 1 or > MaxPageSize)
-        {
-            return ValidationProblem("pageSize", $"PageSize must be between 1 and {MaxPageSize}.");
-        }
+        var (page, pageSize) = (paging.Page, paging.PageSize);
+        var authorUserId = paging.AuthorUserId;
 
         var query = dbContext.Posts
             .AsNoTracking()
-            .Where(post => post.AuthorUserId == authorUserId && post.Status == PostStatus.Published);
+            .Where(post => post.AuthorUserId == authorUserId && post.Status == PostStatus.Published && !post.IsHidden);
 
         var totalCount = await query.CountAsync(cancellationToken);
 
@@ -83,12 +68,4 @@ public static class GetUserPostsEndpoint
         });
     }
 
-    private static IResult ValidationProblem(string key, string message)
-    {
-        return Results.ValidationProblem(
-            new Dictionary<string, string[]>
-            {
-                [key] = [message]
-            });
-    }
 }

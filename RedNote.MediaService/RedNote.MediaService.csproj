@@ -19,6 +19,8 @@
     <!-- 项目直接使用 PostgreSQL EF Core Provider API。 -->
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
     <PackageReference Include="WolverineFx.Http" />
+    <PackageReference Include="WolverineFx.Http.FluentValidation" />
+    <PackageReference Include="WolverineFx.FluentValidation.Grpc" />
     <PackageReference Include="WolverineFx.RuntimeCompilation" />
     <PackageReference Include="WolverineFx.Grpc" />
     <!-- 仅用于 Migration 和设计时 DbContext 创建。 -->

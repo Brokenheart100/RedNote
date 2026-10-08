@@ -1,3 +1,5 @@
+using Wolverine;
+using Wolverine.Attributes;
 using System.Security.Claims;
 using Asp.Versioning;
 using Microsoft.AspNetCore.Authorization;
@@ -13,11 +15,13 @@ namespace RedNote.ContentService.Features.Posts.Unfavorite;
 public static class UnfavoritePostEndpoint
 {
     [WolverineDelete("/posts/{postId:guid}/favorites")]
+    [Transactional]
     public static async Task<IResult> Delete(
         Guid postId,
         ClaimsPrincipal principal,
         [FromServices]
         ContentServiceDbContext dbContext,
+        [FromServices] IMessageBus bus,
         CancellationToken cancellationToken)
     {
         var subject =
@@ -29,6 +33,9 @@ public static class UnfavoritePostEndpoint
         {
             return Results.Unauthorized();
         }
+
+        var post = await dbContext.LockPostForWriteAsync(postId, cancellationToken);
+        if (post is null) return Results.NoContent();
 
         var favorite =
             await dbContext.PostFavorites
@@ -46,8 +53,8 @@ public static class UnfavoritePostEndpoint
         dbContext.PostFavorites.Remove(
             favorite);
 
-        await dbContext.SaveChangesAsync(
-            cancellationToken);
+        post.RecordInteractionChange();
+        await bus.PublishAsync(new RecommendationPreferenceStateChanged(postId, userId, "favorite", false, post.Revision, DateTimeOffset.UtcNow));
 
         return Results.NoContent();
     }

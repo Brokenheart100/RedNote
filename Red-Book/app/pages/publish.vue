@@ -24,6 +24,7 @@ useSeoMeta({
 
 const toast = useToast()
 const postStore = usePostStore()
+const submissionKey = useSubmissionKey()
 
 const {
     uppy,
@@ -119,6 +120,8 @@ function resolvePublishError(error: unknown): string {
 
         case 403:
             return '当前账号没有发布权限。'
+        case 409:
+            return '这次提交仍在处理中，请稍后重试。'
 
         case 413:
             return '上传内容过大，请减少图片数量或文件大小。'
@@ -172,9 +175,12 @@ async function publish(): Promise<void> {
 
         const post = await $fetch<PostResponse>('/api/posts', {
             method: 'POST',
+            headers: { 'Idempotency-Key': submissionKey.getKey(request) },
+            retry: 0,
             body: request,
         })
 
+        submissionKey.reset()
         postStore.upsertPost(post)
 
         if (import.meta.dev) {

@@ -9,6 +9,7 @@ namespace RedNote.ContentService.Features.Users.ProjectUserProfile;
 [WolverineHandler]
 public static class UserProfileChangedHandler
 {
+    [Transactional]
     public static async Task Handle(
         UserProfileChanged message,
         ContentServiceDbContext dbContext,
@@ -26,7 +27,6 @@ public static class UserProfileChangedHandler
                     message.AvatarUrl,
                     message.UpdatedAtUtc));
 
-            await dbContext.SaveChangesAsync(cancellationToken);
             return;
         }
 
@@ -40,7 +40,6 @@ public static class UserProfileChangedHandler
             message.AvatarUrl,
             message.UpdatedAtUtc);
 
-        await dbContext.SaveChangesAsync(cancellationToken);
     }
 }
 

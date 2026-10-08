@@ -17,24 +17,6 @@ public static class ResendConfirmationEmailEndpoint
         [FromServices] UserManager<ApplicationUser> userManager,
         IHostEnvironment environment)
     {
-        if (
-            string.IsNullOrWhiteSpace(
-                request.Email)
-        )
-        {
-            return Results.ValidationProblem(
-                new Dictionary<
-                    string,
-                    string[]
-                >
-                {
-                    ["email"] =
-                        [
-                            "Email is required."
-                        ]
-                });
-        }
-
         var user =
             await userManager.FindByEmailAsync(
                 request.Email);

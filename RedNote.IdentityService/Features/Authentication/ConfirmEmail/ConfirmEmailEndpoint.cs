@@ -15,26 +15,6 @@ public static class ConfirmEmailEndpoint
         ConfirmEmailRequest request,
         UserManager<ApplicationUser> userManager)
     {
-        if (
-            string.IsNullOrWhiteSpace(
-                request.Email)
-        )
-        {
-            return ValidationProblem(
-                "email",
-                "Email is required.");
-        }
-
-        if (
-            string.IsNullOrWhiteSpace(
-                request.Code)
-        )
-        {
-            return ValidationProblem(
-                "code",
-                "Confirmation code is required.");
-        }
-
         var user =
             await userManager.FindByEmailAsync(
                 request.Email);
@@ -87,23 +67,6 @@ public static class ConfirmEmailEndpoint
                 [
                     "The confirmation code is invalid."
                 ]
-            });
-    }
-
-    private static IResult ValidationProblem(
-        string key,
-        string message)
-    {
-        return Results.ValidationProblem(
-            new Dictionary<
-                string,
-                string[]
-            >
-            {
-                [key] =
-                    [
-                        message
-                    ]
             });
     }
 

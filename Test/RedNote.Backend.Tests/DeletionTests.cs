@@ -1,11 +1,7 @@
-using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using RedNote.ContentService.Domain.Posts;
-using RedNote.ContentService.Features.Posts.Delete;
-using RedNote.ContentService.Features.Posts.DeleteComment;
 using RedNote.ContentService.Infrastructure.Persistence;
-using Wolverine.EntityFrameworkCore;
 using Xunit;
 
 namespace RedNote.Backend.Tests;
@@ -63,12 +59,12 @@ public sealed class DeletionTests(BackendFixture fixture)
         var root = new PostComment(Guid.NewGuid(), id, owner, "root", null);
         await Seed(id, owner, root);
         await DeleteComment(id, root.Id, stranger, 403);
+        using var result = await fixture.Send(stranger, HttpMethod.Delete, id.ToString());
+        Assert.Equal(System.Net.HttpStatusCode.Forbidden, result.StatusCode);
         using var scope = fixture.Host.Services.CreateScope();
-        var outbox = scope.ServiceProvider.GetRequiredService<IDbContextOutbox<ContentServiceDbContext>>();
-        var result = await DeletePostEndpoint.Delete(id, ContentConcurrencyTests.Principal(stranger), outbox, default);
-        Assert.IsType<Microsoft.AspNetCore.Http.HttpResults.ForbidHttpResult>(result);
-        Assert.Equal(PostStatus.Published, (await outbox.DbContext.Posts.FindAsync(id))!.Status);
-        Assert.Equal(1, (await outbox.DbContext.Posts.FindAsync(id))!.Revision);
+        var db = scope.ServiceProvider.GetRequiredService<ContentServiceDbContext>();
+        Assert.Equal(PostStatus.Published, (await db.Posts.FindAsync(id))!.Status);
+        Assert.Equal(1, (await db.Posts.FindAsync(id))!.Revision);
     }
 
     private async Task Seed(Guid id, Guid owner, params PostComment[] comments)
@@ -82,13 +78,7 @@ public sealed class DeletionTests(BackendFixture fixture)
 
     private async Task DeleteComment(Guid postId, Guid commentId, Guid user, int expectedStatus)
     {
-        using var scope = fixture.Host.Services.CreateScope();
-        var outbox = scope.ServiceProvider.GetRequiredService<IDbContextOutbox<ContentServiceDbContext>>();
-        var result = await DeletePostCommentEndpoint.Delete(postId, commentId,
-            ContentConcurrencyTests.Principal(user), outbox, default);
-        if (expectedStatus == 403)
-            Assert.IsType<Microsoft.AspNetCore.Http.HttpResults.ForbidHttpResult>(result);
-        else
-            Assert.Equal(expectedStatus, ((IStatusCodeHttpResult)result).StatusCode);
+        using var response = await fixture.Send(user, HttpMethod.Delete, $"{postId}/comments/{commentId}");
+        Assert.Equal(expectedStatus, (int)response.StatusCode);
     }
 }

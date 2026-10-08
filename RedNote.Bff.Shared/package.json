@@ -1,0 +1,31 @@
+{
+  "name": "@rednote/bff-infrastructure",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./traced-fetch": {
+      "types": "./dist/traced-fetch.d.ts",
+      "import": "./dist/traced-fetch.js"
+    },
+    "./identity-antiforgery": {
+      "types": "./dist/identity-antiforgery.d.ts",
+      "import": "./dist/identity-antiforgery.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "peerDependencies": {
+    "@opentelemetry/api": "1.9.0",
+    "h3": "^1.15.0",
+    "ofetch": "^1.5.0"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "prepare": "npm run build"
+  },
+  "devDependencies": {
+    "typescript": "6.0.3"
+  }
+}

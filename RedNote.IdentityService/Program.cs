@@ -1,18 +1,26 @@
-using Microsoft.AspNetCore.HttpOverrides;
+using JasperFx;
+using Wolverine.FluentValidation;
+using Wolverine.Http.FluentValidation;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using RedNote.IdentityService.Domain.Users;
 using RedNote.IdentityService.Infrastructure.OpenIddict;
 using RedNote.IdentityService.Infrastructure.Persistence;
+using RedNote.IdentityService.Infrastructure.Http;
 using ServiceDefaults;
 using Wolverine;
 using Wolverine.Http;
 using Wolverine.Http.ApiVersioning;
+using RedNote.Authentication;
+using RedNote.IdentityService.Features.Authentication.Admin;
 
-var builder = WebApplication.CreateBuilder(args);
+var builder = WebApplication.CreateBuilder(args.Where(argument => argument != "--provision-admin").ToArray());
+var provisioningAdmin = args.Contains("--provision-admin", StringComparer.Ordinal);
+if (provisioningAdmin) builder.Logging.ClearProviders();
 
 builder.AddServiceDefaults();
+builder.AddTrustedForwardedHeaders();
 
 var isDevelopment = builder.Environment.IsDevelopment();
 
@@ -20,12 +28,18 @@ var requireHttps = builder.Configuration.GetValue(
     "Security:RequireHttps",
     !isDevelopment);
 
-var trustAnyForwardedHeaders = builder.Configuration.GetValue(
-    "Security:TrustAnyForwardedHeaders",
-    isDevelopment);
-
 var connectionString = builder.Configuration.GetConnectionString("identitydb")
     ?? throw new InvalidOperationException("Connection string 'identitydb' was not found.");
+if (provisioningAdmin)
+{
+    var provisioningConnection = new Npgsql.NpgsqlConnectionStringBuilder(connectionString);
+    // Password bootstrap does not use Kerberos; slim Linux images have no GSS library.
+    if (!string.IsNullOrEmpty(provisioningConnection.Password))
+    {
+        provisioningConnection.GssEncryptionMode = Npgsql.GssEncryptionMode.Disable;
+        connectionString = provisioningConnection.ConnectionString;
+    }
+}
 
 builder.Services.AddDbContext<IdentityServiceDbContext>(options =>
 {
@@ -147,7 +161,7 @@ builder.Services
             "profile",
             "email",
             "offline_access",
-            "rednote-api");
+            "rednote-api", "rednote-admin");
 
         /*
          * 当前用于开发 / Docker smoke test。
@@ -181,33 +195,11 @@ builder.Services
 builder.Services.AddSingleton<OpenIddictSeeder>();
 
 builder.Services.AddAuthorization();
-
-/*
- * Forwarded Headers
- *
- * Cloudflare / Gateway 在外部 HTTPS -> 内部 HTTP 的情况下，
- * ASP.NET Core 必须能够根据 X-Forwarded-Proto 恢复原始 scheme。
- *
- * 本地 Docker + Cloudflare smoke test 可以显式打开
- * Security:TrustAnyForwardedHeaders。
- *
- * 正式生产环境不要使用 trust-all，
- * 应配置明确的 KnownProxies / KnownIPNetworks。
- */
-builder.Services.Configure<ForwardedHeadersOptions>(options =>
+builder.Services.AddRedNoteJwtAuthentication(builder.Configuration);
+builder.Services.AddAuthentication(options =>
 {
-    options.ForwardedHeaders =
-        ForwardedHeaders.XForwardedFor
-        | ForwardedHeaders.XForwardedProto
-        | ForwardedHeaders.XForwardedHost;
-
-    options.ForwardLimit = 2;
-
-    if (trustAnyForwardedHeaders)
-    {
-        options.KnownIPNetworks.Clear();
-        options.KnownProxies.Clear();
-    }
+    options.DefaultAuthenticateScheme = IdentityConstants.ApplicationScheme;
+    options.DefaultChallengeScheme = IdentityConstants.ApplicationScheme;
 });
 
 builder.Services.AddWolverineHttp();
@@ -215,6 +207,7 @@ builder.Services.AddWolverineHttp();
 builder.Host.UseWolverine(options =>
 {
     options.UseRuntimeCompilation();
+    options.UseFluentValidation();
 
     options.CodeGeneration
         .AlwaysUseServiceLocationFor<IdentityServiceDbContext>();
@@ -228,6 +221,12 @@ builder.Host.UseWolverine(options =>
 });
 
 var app = builder.Build();
+app.UseDefaultExceptionHandler();
+if (provisioningAdmin)
+{
+    await AdminIdentity.ProvisionAsync(app.Services, builder.Configuration);
+    return;
+}
 
 /*
  * 必须位于 Authentication / Authorization 之前，
@@ -235,15 +234,18 @@ var app = builder.Build();
  */
 app.UseForwardedHeaders();
 
-await app.Services
-    .GetRequiredService<OpenIddictSeeder>()
-    .SeedAsync();
+if (args.FirstOrDefault() is not ("check-env" or "describe" or "codegen"))
+    await app.Services.GetRequiredService<OpenIddictSeeder>().SeedAsync();
 
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseAntiforgery();
+app.MapAdminIdentityEndpoints();
 
 app.MapWolverineEndpoints(options =>
 {
+    options.AddMiddleware(typeof(AntiforgeryResultMiddleware));
+    options.UseFluentValidationProblemDetailMiddleware();
     options.UseApiVersioning(versioning =>
     {
         versioning.UrlSegmentPrefix = "api/v{version}";
@@ -253,4 +255,4 @@ app.MapWolverineEndpoints(options =>
 
 app.MapDefaultEndpoints();
 
-await app.RunAsync();
+Environment.ExitCode = await app.RunJasperFxCommands(args);

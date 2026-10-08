@@ -54,6 +54,16 @@ public sealed class Post
     public PostStatus Status { get; private set; }
 
     public long Revision { get; private set; } = 1;
+    public bool IsHidden { get; private set; }
+
+    public void SetHidden(bool hidden)
+    {
+        if (Status == PostStatus.Deleted) throw new InvalidOperationException("Deleted posts cannot be moderated.");
+        if (IsHidden == hidden) return;
+        IsHidden = hidden;
+        UpdatedAtUtc = DateTimeOffset.UtcNow;
+        Revision++;
+    }
 
     public DateTimeOffset CreatedAtUtc { get; private set; }
 
@@ -83,6 +93,7 @@ public sealed class Post
     }
 
     public void RecordMetricsChange() => Revision++;
+    public void RecordInteractionChange() => Revision++;
 }
 
 public enum PostStatus

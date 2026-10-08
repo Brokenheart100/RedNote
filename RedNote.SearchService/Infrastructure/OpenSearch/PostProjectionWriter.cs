@@ -5,6 +5,17 @@ namespace RedNote.SearchService.Infrastructure.OpenSearch;
 
 internal static class PostProjectionWriter
 {
+    private const string VisibilityScript = """
+        if (ctx._source.isDeleted == true) { ctx.op = 'noop'; }
+        else if (ctx.op == 'create' || ctx._source.visibilityRevision == null || params.revision > ctx._source.visibilityRevision) {
+            ctx._source.id = params.id;
+            ctx._source.isHidden = params.hidden;
+            ctx._source.visibilityRevision = params.revision;
+        } else { ctx.op = 'noop'; }
+        """;
+
+    internal static Task WriteVisibilityAsync(IOpenSearchClient client, Guid id, bool hidden, long revision, CancellationToken ct) =>
+        ApplyAsync(client, id, VisibilityScript, new Dictionary<string, object> { ["id"] = id, ["hidden"] = hidden, ["revision"] = revision }, ct);
     // Metadata and metrics have independent versions: a newer metrics event can
     // precede an older title update without losing either change.
     private const string SnapshotScript = """
@@ -56,20 +67,31 @@ internal static class PostProjectionWriter
 
     internal static Task WriteSnapshotAsync(IOpenSearchClient client, PostSearchDocument document,
         long revision, CancellationToken cancellationToken) => ApplyAsync(client, document.Id, SnapshotScript,
-            new Dictionary<string, object> { ["revision"] = revision, ["document"] = new
+            new Dictionary<string, object>
             {
-                id = document.Id, authorUserId = document.AuthorUserId, title = document.Title,
-                content = document.Content, tags = document.Tags, likeCount = document.LikeCount,
-                commentCount = document.CommentCount, createdAtUtc = document.CreatedAtUtc,
-                updatedAtUtc = document.UpdatedAtUtc
-            } }, cancellationToken);
+                ["revision"] = revision,
+                ["document"] = new
+                {
+                    id = document.Id,
+                    authorUserId = document.AuthorUserId,
+                    title = document.Title,
+                    content = document.Content,
+                    tags = document.Tags,
+                    likeCount = document.LikeCount,
+                    commentCount = document.CommentCount,
+                    createdAtUtc = document.CreatedAtUtc,
+                    updatedAtUtc = document.UpdatedAtUtc
+                }
+            }, cancellationToken);
 
     internal static Task WriteMetricsAsync(IOpenSearchClient client, Guid id, int likeCount,
         int commentCount, long revision, CancellationToken cancellationToken) => ApplyAsync(client, id,
             MetricsScript, new Dictionary<string, object>
             {
-                ["id"] = id, ["revision"] = revision,
-                ["likeCount"] = likeCount, ["commentCount"] = commentCount
+                ["id"] = id,
+                ["revision"] = revision,
+                ["likeCount"] = likeCount,
+                ["commentCount"] = commentCount
             }, cancellationToken);
 
     internal static Task DeleteAsync(IOpenSearchClient client, Guid id, long revision,

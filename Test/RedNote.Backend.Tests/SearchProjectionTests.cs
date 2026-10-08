@@ -5,6 +5,7 @@ using RedNote.SearchService.Features.Search.Posts.ProjectPostDeleted;
 using RedNote.SearchService.Features.Search.Posts.ProjectPostMetricsChanged;
 using RedNote.SearchService.Features.Search.Posts.ProjectPostPublished;
 using RedNote.SearchService.Features.Search.Posts.ProjectPostUpdated;
+using RedNote.SearchService.Features.Search.Posts.ProjectVisibility;
 using RedNote.SearchService.Infrastructure.OpenSearch;
 using Xunit;
 
@@ -13,6 +14,25 @@ namespace RedNote.Backend.Tests;
 [Collection("Backend")]
 public sealed class SearchProjectionTests(BackendFixture fixture)
 {
+    [Fact]
+    public async Task ModerationSurvivesLateSnapshotsAndRestoresOnlyAtANewerVersion()
+    {
+        var id = Guid.NewGuid();
+        await PostVisibilityChangedHandler.Handle(new PostVisibilityChanged(id, true, 3), fixture.Search, default);
+        await Update(id, "late snapshot", 2, 0);
+        await Metrics(id, 10, 4);
+        Assert.True((await Get(id)).IsHidden);
+        await PostVisibilityChangedHandler.Handle(new PostVisibilityChanged(id, false, 5), fixture.Search, default);
+        await PostVisibilityChangedHandler.Handle(new PostVisibilityChanged(id, true, 3), fixture.Search, default);
+        var restored = await Get(id);
+        Assert.False(restored.IsHidden);
+        Assert.Equal(5, restored.VisibilityRevision);
+        Assert.Equal(10, restored.LikeCount);
+        await PostDeletedHandler.Handle(new PostDeleted(id, DateTimeOffset.UtcNow, 6), fixture.Search, default);
+        await PostVisibilityChangedHandler.Handle(new PostVisibilityChanged(id, false, 9), fixture.Search, default);
+        Assert.True((await Get(id)).IsDeleted);
+    }
+
     [Fact]
     public async Task OlderMetadataAndMetricsCannotOverwriteNewerValues()
     {

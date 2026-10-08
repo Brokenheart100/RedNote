@@ -2,12 +2,13 @@ using System.Security.Claims;
 using Asp.Versioning;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using RedNote.ContentService.Domain.Posts;
 using RedNote.ContentService.Features.Posts.Common;
 using RedNote.ContentService.Infrastructure.Persistence;
 using RedNote.Contracts.Content;
 using RedNote.Contracts.Media;
-using Wolverine.EntityFrameworkCore;
+using Wolverine.Attributes;
 using Wolverine.Http;
 
 namespace RedNote.ContentService.Features.Posts.Create;
@@ -16,289 +17,82 @@ namespace RedNote.ContentService.Features.Posts.Create;
 [Authorize]
 public static class CreatePostEndpoint
 {
-    private const int MaxMediaCount = 9;
-    private const int MaxTagCount = 10;
-
-    [WolverinePost("/posts")]
-    public static async Task<IResult> Post(
+    public static async Task<(IResult, ValidatedPostInput?)> Before(
         CreatePostRequest request,
         ClaimsPrincipal principal,
         [FromServices] IMediaGrpcService mediaServiceClient,
-        [FromServices] PostResponseQueryService postResponseQueryService,
-        [FromServices] IDbContextOutbox<ContentServiceDbContext> outbox,
         CancellationToken cancellationToken)
     {
-        var dbContext = outbox.DbContext;
+        if (!Guid.TryParse(principal.FindFirst("sub")?.Value, out var userId))
+            return (Results.Unauthorized(), null);
 
-        var subject = principal.FindFirst("sub")?.Value;
+        var mediaIds = request.MediaIds?.Distinct().ToArray() ?? [];
+        var mediaResponse = mediaIds.Length == 0 ? new GetMediaBatchResponse() :
+            await mediaServiceClient.GetBatchAsync(new GetMediaBatchRequest { MediaIds = [.. mediaIds] }, cancellationToken);
 
-        if (!Guid.TryParse(subject, out var currentUserId))
+        if (mediaResponse.Items.Count != mediaIds.Length)
+            return (InvalidMedia("One or more media items do not exist."), null);
+
+        var mediaById = mediaResponse.Items.ToDictionary(media => media.Id);
+        foreach (var mediaId in mediaIds)
         {
-            return Results.Unauthorized();
+            if (!mediaById.TryGetValue(mediaId, out var media))
+                return (InvalidMedia($"Media '{mediaId}' does not exist."), null);
+            if (media.OwnerUserId != userId)
+                return (InvalidMedia("All media items must belong to the current user."), null);
+            if (!media.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+                return (InvalidMedia("Only image media can be attached to a post."), null);
         }
 
-        /*
-         * Title
-         */
+        return (WolverineContinue.Result(), new ValidatedPostInput(userId, mediaResponse));
+    }
 
-        if (string.IsNullOrWhiteSpace(request.Title))
-        {
-            return ValidationProblem("title", "Title is required.");
-        }
-
-        if (request.Title.Length > 100)
-        {
-            return ValidationProblem("title", "Title cannot exceed 100 characters.");
-        }
-
-        /*
-         * Content
-         */
-
-        if (string.IsNullOrWhiteSpace(request.Content))
-        {
-            return ValidationProblem("content", "Content is required.");
-        }
-
-        if (request.Content.Length > 5000)
-        {
-            return ValidationProblem("content", "Content cannot exceed 5000 characters.");
-        }
-
-        /*
-         * MediaIds
-         */
-
-        var mediaIds = request.MediaIds?
-            .Distinct()
-            .ToArray()
-            ?? [];
-
-        if (mediaIds.Length > MaxMediaCount)
-        {
-            return ValidationProblem(
-                "mediaIds",
-                $"A post can contain at most {MaxMediaCount} media items.");
-        }
-
-        if (mediaIds.Any(mediaId => mediaId == Guid.Empty))
-        {
-            return ValidationProblem(
-                "mediaIds",
-                "MediaIds cannot contain an empty GUID.");
-        }
-
-        /*
-         * Tags
-         */
-
-        var tagValidationResult = NormalizeTags(request.Tags);
-
-        if (!tagValidationResult.IsValid)
-        {
-            return ValidationProblem(
-                "tags",
-                tagValidationResult.Error!);
-        }
-
-        var tags = tagValidationResult.Tags;
-
-        /*
-         * 验证媒体资源
-         */
-
-        if (mediaIds.Length > 0)
-        {
-            var mediaResponse = await mediaServiceClient.GetBatchAsync(
-                new GetMediaBatchRequest
-                {
-                    MediaIds = [.. mediaIds]
-                },
-                cancellationToken);
-
-            if (mediaResponse.Items.Count != mediaIds.Length)
-            {
-                return ValidationProblem(
-                    "mediaIds",
-                    "One or more media items do not exist.");
-            }
-
-            var mediaById = mediaResponse.Items.ToDictionary(media => media.Id);
-
-            foreach (var mediaId in mediaIds)
-            {
-                if (!mediaById.TryGetValue(mediaId, out var media))
-                {
-                    return ValidationProblem(
-                        "mediaIds",
-                        $"Media '{mediaId}' does not exist.");
-                }
-
-                if (media.OwnerUserId != currentUserId)
-                {
-                    return ValidationProblem(
-                        "mediaIds",
-                        "All media items must belong to the current user.");
-                }
-
-                if (!media.ContentType.StartsWith(
-                        "image/",
-                        StringComparison.OrdinalIgnoreCase))
-                {
-                    return ValidationProblem(
-                        "mediaIds",
-                        "Only image media can be attached to a post.");
-                }
-            }
-        }
-
-        /*
-         * Post
-         */
-
-        var post = new Domain.Posts.Post(
-            Guid.NewGuid(),
-            currentUserId,
-            request.Title.Trim(),
-            request.Content.Trim());
-
+    [WolverinePost("/posts")]
+    [ProducesResponseType(typeof(PostResponse), StatusCodes.Status201Created)]
+    [Transactional]
+    [DeduplicatedWithResponse(DeduplicationScope.User | DeduplicationScope.Endpoint, Required = false)]
+    public static async Task<(PostResponse, PostPublished, RecommendationItemStateChanged)> Post(
+        CreatePostRequest request,
+        ValidatedPostInput input,
+        HttpContext httpContext,
+        ContentServiceDbContext dbContext,
+        CancellationToken cancellationToken)
+    {
+        var userId = input.UserId;
+        var mediaResponse = input.Media;
+        var post = new Domain.Posts.Post(Guid.NewGuid(), userId, request.Title.Trim(), request.Content.Trim());
+        var mediaIds = request.MediaIds?.Distinct().ToArray() ?? [];
+        var tags = request.Tags is null ? [] : PostTags.Normalize(request.Tags);
         dbContext.Posts.Add(post);
-
-        /*
-         * PostMedia
-         */
-
         for (var index = 0; index < mediaIds.Length; index++)
+            dbContext.PostMedia.Add(new PostMedia(post.Id, mediaIds[index], index));
+        foreach (var tag in tags) dbContext.PostTags.Add(new PostTag(post.Id, tag));
+
+        // Build from the pending write and validated media, before the framework commits.
+        // This avoids a second gRPC call after a successful database commit.
+        var author = await dbContext.UserProfileProjections.AsNoTracking()
+            .SingleOrDefaultAsync(profile => profile.UserId == userId, cancellationToken);
+        var mediaById = mediaResponse.Items.ToDictionary(media => media.Id);
+        var media = mediaIds.Select(id =>
         {
-            dbContext.PostMedia.Add(
-                new PostMedia(
-                    post.Id,
-                    mediaIds[index],
-                    index));
-        }
+            var item = mediaById[id];
+            return new PostMediaResponse(item.Id, item.FileName, item.ContentType, item.Size, item.Url);
+        }).ToArray();
+        var response = new PostResponse(post.Id, userId,
+            new PostAuthorResponse(userId, author?.Nickname, author?.AvatarUrl),
+            post.Title, post.Content, mediaIds, media, tags, 0, 0, false, false,
+            post.CreatedAtUtc, post.UpdatedAtUtc);
 
-        /*
-         * PostTags
-         */
-
-        foreach (var tag in tags)
-        {
-            dbContext.PostTags.Add(
-                new PostTag(
-                    post.Id,
-                    tag));
-        }
-
-        /*
-         * Transactional Outbox
-         */
-
-        await outbox.PublishAsync(
-            new PostPublished(
-                post.Id,
-                post.AuthorUserId,
-                post.Title,
-                post.Content,
-                tags,
-                0,
-                0,
-                post.CreatedAtUtc,
-                post.UpdatedAtUtc,
-                post.Revision));
-
-        await outbox.SaveChangesAndFlushMessagesAsync(
-            cancellationToken);
-
-        /*
-         * Response
-         */
-
-        var readModel = new PostReadModel(
-            post.Id,
-            post.AuthorUserId,
-            post.Title,
-            post.Content,
-            post.CreatedAtUtc,
-            post.UpdatedAtUtc);
-
-        var response = await postResponseQueryService.BuildSingleAsync(
-            readModel,
-            currentUserId,
-            cancellationToken);
-
-        return Results.Created(
-            $"/api/v1/posts/{post.Id}",
-            response);
+        // Wolverine persists the entity and cascading event in the same EF transaction.
+        httpContext.Response.StatusCode = StatusCodes.Status201Created;
+        httpContext.Response.Headers.Location = $"/api/v1/posts/{post.Id}";
+        return (response,
+            new PostPublished(post.Id, userId, post.Title, post.Content, tags, 0, 0,
+                post.CreatedAtUtc, post.UpdatedAtUtc, post.Revision), post.RecommendationState(tags));
     }
 
-    private static TagValidationResult NormalizeTags(
-        IReadOnlyList<string>? tags)
-    {
-        if (tags is null || tags.Count == 0)
-        {
-            return new TagValidationResult(
-                true,
-                [],
-                null);
-        }
-
-        var normalizedTags = new List<string>();
-        var tagNames = new HashSet<string>(
-            StringComparer.OrdinalIgnoreCase);
-
-        foreach (var rawTag in tags)
-        {
-            if (string.IsNullOrWhiteSpace(rawTag))
-            {
-                return new TagValidationResult(
-                    false,
-                    [],
-                    "Tags cannot contain empty values.");
-            }
-
-            var tag = rawTag.Trim();
-
-            if (tag.Length > 30)
-            {
-                return new TagValidationResult(
-                    false,
-                    [],
-                    "Each tag cannot exceed 30 characters.");
-            }
-
-            if (tagNames.Add(tag))
-            {
-                normalizedTags.Add(tag);
-            }
-        }
-
-        if (normalizedTags.Count > MaxTagCount)
-        {
-            return new TagValidationResult(
-                false,
-                [],
-                $"A post can contain at most {MaxTagCount} tags.");
-        }
-
-        return new TagValidationResult(
-            true,
-            [.. normalizedTags],
-            null);
-    }
-
-    private static IResult ValidationProblem(
-        string key,
-        string message)
-    {
-        return Results.ValidationProblem(
-            new Dictionary<string, string[]>
-            {
-                [key] = [message]
-            });
-    }
-
-    private sealed record TagValidationResult(
-        bool IsValid,
-        IReadOnlyList<string> Tags,
-        string? Error);
+    private static IResult InvalidMedia(string message) => Results.ValidationProblem(
+        new Dictionary<string, string[]> { ["mediaIds"] = [message] });
 }
+
+public sealed record ValidatedPostInput(Guid UserId, GetMediaBatchResponse Media);

@@ -7,7 +7,8 @@ using RedNote.ContentService.Domain.Posts;
 using RedNote.ContentService.Features.Posts.Common;
 using RedNote.ContentService.Infrastructure.Persistence;
 using RedNote.Contracts.Content;
-using Wolverine.EntityFrameworkCore;
+using Wolverine;
+using Wolverine.Attributes;
 using Wolverine.Http;
 
 namespace RedNote.ContentService.Features.Posts.Update;
@@ -16,9 +17,9 @@ namespace RedNote.ContentService.Features.Posts.Update;
 [Authorize]
 public static class UpdatePostEndpoint
 {
-    private const int MaxTagCount = 10;
 
     [WolverinePatch("/posts/{postId:guid}")]
+    [Transactional]
     public static async Task<IResult> Patch(
         Guid postId,
         UpdatePostRequest request,
@@ -26,12 +27,10 @@ public static class UpdatePostEndpoint
         [FromServices]
         PostResponseQueryService postResponseQueryService,
         [FromServices]
-        IDbContextOutbox<ContentServiceDbContext> outbox,
+        ContentServiceDbContext dbContext,
+        [FromServices] IMessageBus bus,
         CancellationToken cancellationToken)
     {
-        var dbContext =
-            outbox.DbContext;
-
         var subject =
             principal.FindFirst("sub")?.Value;
 
@@ -42,83 +41,19 @@ public static class UpdatePostEndpoint
             return Results.Unauthorized();
         }
 
-        /*
-         * Title
-         */
-
-        if (string.IsNullOrWhiteSpace(
-                request.Title))
-        {
-            return ValidationProblem(
-                "title",
-                "Title is required.");
-        }
-
-        if (request.Title.Length > 100)
-        {
-            return ValidationProblem(
-                "title",
-                "Title cannot exceed 100 characters.");
-        }
-
-        /*
-         * Content
-         */
-
-        if (string.IsNullOrWhiteSpace(
-                request.Content))
-        {
-            return ValidationProblem(
-                "content",
-                "Content is required.");
-        }
-
-        if (request.Content.Length > 5000)
-        {
-            return ValidationProblem(
-                "content",
-                "Content cannot exceed 5000 characters.");
-        }
-
-        /*
-         * Tags
-         *
-         * null  = 保留
-         * []    = 清空
-         * [...] = 替换
-         */
-
-        IReadOnlyList<string>? normalizedTags =
-            null;
-
-        if (request.Tags is not null)
-        {
-            var tagValidationResult =
-                NormalizeTags(
-                    request.Tags);
-
-            if (!tagValidationResult.IsValid)
-            {
-                return ValidationProblem(
-                    "tags",
-                    tagValidationResult.Error!);
-            }
-
-            normalizedTags =
-                tagValidationResult.Tags;
-        }
+        // null preserves tags; an empty list clears them.
+        IReadOnlyList<string>? normalizedTags = request.Tags is null ? null : PostTags.Normalize(request.Tags);
 
         /*
          * Post
          */
 
-        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
-        var post = await PostWriteLock.AcquireAsync(dbContext, postId, cancellationToken);
+        var post = await dbContext.LockPostForWriteAsync(postId, cancellationToken);
 
         if (
             post is null
-            || post.Status ==
-                PostStatus.Deleted
+            || (post.Status ==
+                PostStatus.Deleted || post.IsHidden)
         )
         {
             return Results.NotFound();
@@ -204,7 +139,7 @@ public static class UpdatePostEndpoint
                         comment.PostId ==
                             post.Id
                         && comment.Status ==
-                            PostCommentStatus.Published,
+                            PostCommentStatus.Published && !comment.IsHidden && !comment.IsParentHidden,
                     cancellationToken);
 
         /*
@@ -219,7 +154,7 @@ public static class UpdatePostEndpoint
          * Transactional Outbox
          */
 
-        await outbox.PublishAsync(
+        await bus.PublishAsync(
             new PostUpdated(
                 post.Id,
                 post.AuthorUserId,
@@ -232,9 +167,11 @@ public static class UpdatePostEndpoint
                 post.UpdatedAtUtc,
                 post.Revision));
 
-        await outbox
-            .SaveChangesAndFlushMessagesAsync(
-                cancellationToken);
+        await bus.PublishAsync(post.RecommendationState(finalTags));
+
+        // Flush within the open transaction so response queries see the updated tags.
+        // Wolverine commits the transaction and its durable outbox after the endpoint succeeds.
+        await dbContext.SaveChangesAsync(cancellationToken);
 
         /*
          * Response
@@ -260,85 +197,4 @@ public static class UpdatePostEndpoint
             response);
     }
 
-    private static TagValidationResult NormalizeTags(
-        IReadOnlyList<string> tags)
-    {
-        if (tags.Count == 0)
-        {
-            return new TagValidationResult(
-                true,
-                [],
-                null);
-        }
-
-        var normalizedTags =
-            new List<string>();
-
-        var tagNames =
-            new HashSet<string>(
-                StringComparer.OrdinalIgnoreCase);
-
-        foreach (var rawTag in tags)
-        {
-            if (string.IsNullOrWhiteSpace(
-                    rawTag))
-            {
-                return new TagValidationResult(
-                    false,
-                    [],
-                    "Tags cannot contain empty values.");
-            }
-
-            var tag =
-                rawTag.Trim();
-
-            if (tag.Length > 30)
-            {
-                return new TagValidationResult(
-                    false,
-                    [],
-                    "Each tag cannot exceed 30 characters.");
-            }
-
-            if (tagNames.Add(
-                    tag))
-            {
-                normalizedTags.Add(
-                    tag);
-            }
-        }
-
-        if (normalizedTags.Count >
-            MaxTagCount)
-        {
-            return new TagValidationResult(
-                false,
-                [],
-                $"A post can contain at most {MaxTagCount} tags.");
-        }
-
-        return new TagValidationResult(
-            true,
-            normalizedTags.ToArray(),
-            null);
-    }
-
-    private static IResult ValidationProblem(
-        string key,
-        string message)
-    {
-        return Results.ValidationProblem(
-            new Dictionary<string, string[]>
-            {
-                [key] =
-                [
-                    message
-                ]
-            });
-    }
-
-    private sealed record TagValidationResult(
-        bool IsValid,
-        IReadOnlyList<string> Tags,
-        string? Error);
 }

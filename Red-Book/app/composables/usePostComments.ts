@@ -1,13 +1,14 @@
 import type { Ref } from 'vue'
 import type { PostCommentItem, PostCommentResponse, PostCommentsResponse, PostResponse } from '~~/shared/types/posts'
 import { createLatestRequest } from '~/utils/latest-request'
-import { getApiErrorMessage } from '~/utils/api-error'
+import { getApiErrorMessage, getApiErrorStatus } from '~/utils/api-error'
 import { commentSchema, parseComment } from '~~/shared/schemas/requests'
 import { getRequestValidationMessage } from '~/utils/request-validation'
 
 export function usePostComments(post: Readonly<Ref<PostResponse>>, open: Ref<boolean>) {
     const store = usePostStore()
     const toast = useToast()
+    const submissionKey = useSubmissionKey()
     const requests = createLatestRequest()
     const submissions = createLatestRequest()
     const deletions = createLatestRequest()
@@ -101,29 +102,38 @@ export function usePostComments(post: Readonly<Ref<PostResponse>>, open: Ref<boo
         const ticket = submissions.start()
         commentSubmitting.value = true
         try {
+            const body = parseComment({ content: commentContent.value, parentCommentId: parent?.id ?? null })
             const created = await $fetch<PostCommentResponse>(
                 `/api/posts/${encodeURIComponent(id)}/comments`,
                 {
                     method: 'POST', retry: 0, signal: ticket.signal,
-                    body: parseComment({ content: commentContent.value, parentCommentId: parent?.id ?? null }),
+                    headers: { 'Idempotency-Key': submissionKey.getKey({ postId: id, ...body }) },
+                    body,
                 },
             )
+            submissionKey.reset()
             if (!ticket.isCurrent() || id !== post.value.id) return
-            if (parent) {
+            const alreadyListed = comments.value.some(item => item.id === created.id
+                || item.replies.some(reply => reply.id === created.id))
+            if (!alreadyListed && parent) {
                 const target = comments.value.find(item => item.id === parent.id)
                 target?.replies.push(created)
             }
-            else {
+            else if (!alreadyListed) {
                 comments.value.unshift({ ...created, replies: [] })
                 total.value++
             }
             commentContent.value = ''
             replyingTo.value = null
-            localCommentCount.value++
+            if (!alreadyListed) localCommentCount.value++
             store.patchPost(id, { commentCount: localCommentCount.value })
         }
         catch (error) {
             if (ticket.isCurrent()) {
+                if (getApiErrorStatus(error) === 409) {
+                    toast.add({ title: '评论仍在处理中，请稍后重试。', color: 'info' })
+                    return
+                }
                 toast.add({
                     title: '评论发布失败',
                     description: getRequestValidationMessage(error) ?? getApiErrorMessage(error, '请稍后重试。'),

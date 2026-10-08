@@ -13,16 +13,6 @@ public static class GetMediaBatchEndpoint
         MediaQueryService queryService,
         CancellationToken cancellationToken)
     {
-        try
-        {
-            return Results.Ok(await queryService.GetBatchAsync(request.MediaIds, cancellationToken));
-        }
-        catch (MediaQueryValidationException exception)
-        {
-            return Results.ValidationProblem(new Dictionary<string, string[]>
-            {
-                ["mediaIds"] = [exception.ValidationMessage]
-            });
-        }
+        return Results.Ok(await queryService.GetBatchAsync(request.MediaIds, cancellationToken));
     }
 }

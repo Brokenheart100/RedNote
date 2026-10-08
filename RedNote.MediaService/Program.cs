@@ -1,3 +1,4 @@
+using JasperFx;
 using Amazon.Runtime;
 using Amazon.S3;
 using Amazon.S3.Model;
@@ -7,8 +8,12 @@ using RedNote.Authentication;
 using RedNote.Contracts.Media;
 using RedNote.MediaService.Features.Media.Common;
 using RedNote.MediaService.Infrastructure.Persistence;
+using RedNote.MediaService.Infrastructure.Hosting;
 using ServiceDefaults;
 using Wolverine;
+using Wolverine.FluentValidation;
+using Wolverine.FluentValidation.Grpc;
+using Wolverine.Http.FluentValidation;
 using Wolverine.Grpc;
 using Wolverine.Http;
 using Wolverine.Http.ApiVersioning;
@@ -16,6 +21,7 @@ using Wolverine.Http.ApiVersioning;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.AddServiceDefaults();
+builder.ConfigureMediaEndpoints();
 
 var connectionString = builder.Configuration.GetConnectionString("mediadb")
     ?? throw new InvalidOperationException("Connection string 'mediadb' was not found.");
@@ -32,6 +38,9 @@ builder.Services.AddHostedService<OrphanedUploadCleanup>();
 builder.Host.UseWolverine(options =>
 {
     options.UseRuntimeCompilation();
+    options.UseFluentValidation();
+    options.UseGrpcRichErrorDetails();
+    options.UseFluentValidationGrpcErrorDetails();
     options.CodeGeneration.AlwaysUseServiceLocationFor<MediaServiceDbContext>();
     options.CodeGeneration.AlwaysUseServiceLocationFor<MediaQueryService>();
 });
@@ -69,12 +78,14 @@ builder.Services.AddSingleton<IAmazonS3>(_ =>
 });
 
 // Sign against the browser-visible host; never rewrite a URL after signing it.
-builder.Services.AddSingleton<MediaUrlSigner>(_ => new MediaUrlSigner(
+builder.Services.AddSingleton(_ => new MediaUrlSigner(
     s3AccessKey, s3SecretKey, builder.Configuration["S3:PublicServiceUrl"] ?? s3Endpoint));
 
 var app = builder.Build();
+app.UseDefaultExceptionHandler();
 
-await EnsureBucketExistsAsync(app.Services, app.Lifetime.ApplicationStopping);
+if (args.FirstOrDefault() is not ("check-env" or "describe" or "codegen"))
+    await EnsureBucketExistsAsync(app.Services, app.Lifetime.ApplicationStopping);
 
 app.UseAuthentication();
 app.UseAuthorization();
@@ -83,6 +94,7 @@ app.MapWolverineGrpcServices();
 
 app.MapWolverineEndpoints(options =>
 {
+    options.UseFluentValidationProblemDetailMiddleware();
     options.UseApiVersioning(versioning =>
     {
         versioning.UrlSegmentPrefix = "api/v{version}";
@@ -92,7 +104,7 @@ app.MapWolverineEndpoints(options =>
 
 app.MapDefaultEndpoints();
 
-await app.RunAsync();
+Environment.ExitCode = await app.RunJasperFxCommands(args);
 
 static async Task EnsureBucketExistsAsync(
     IServiceProvider services,

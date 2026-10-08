@@ -16,36 +16,6 @@ public static class ResetPasswordEndpoint
         ResetPasswordRequest request,
         [FromServices] UserManager<ApplicationUser> userManager)
     {
-        if (
-            string.IsNullOrWhiteSpace(
-                request.Email)
-        )
-        {
-            return ValidationProblem(
-                "email",
-                "Email is required.");
-        }
-
-        if (
-            string.IsNullOrWhiteSpace(
-                request.ResetCode)
-        )
-        {
-            return ValidationProblem(
-                "resetCode",
-                "Reset code is required.");
-        }
-
-        if (
-            string.IsNullOrWhiteSpace(
-                request.NewPassword)
-        )
-        {
-            return ValidationProblem(
-                "newPassword",
-                "New password is required.");
-        }
-
         var user =
             await userManager.FindByEmailAsync(
                 request.Email);
@@ -123,23 +93,6 @@ public static class ResetPasswordEndpoint
                 ["resetCode"] =
                     [
                         "The reset code is invalid."
-                    ]
-            });
-    }
-
-    private static IResult ValidationProblem(
-        string key,
-        string message)
-    {
-        return Results.ValidationProblem(
-            new Dictionary<
-                string,
-                string[]
-            >
-            {
-                [key] =
-                    [
-                        message
                     ]
             });
     }

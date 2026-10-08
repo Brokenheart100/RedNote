@@ -10,30 +10,11 @@ namespace RedNote.IdentityService.Features.Authentication.SessionLogin;
 public static class SessionLoginEndpoint
 {
     [WolverinePost("/auth/session/login")]
+    [ValidateAntiforgery]
     public static async Task<IResult> Post(
         SessionLoginRequest request,
         [FromServices] SignInManager<ApplicationUser> signInManager)
     {
-        if (
-            string.IsNullOrWhiteSpace(
-                request.Email)
-        )
-        {
-            return ValidationProblem(
-                "email",
-                "Email is required.");
-        }
-
-        if (
-            string.IsNullOrWhiteSpace(
-                request.Password)
-        )
-        {
-            return ValidationProblem(
-                "password",
-                "Password is required.");
-        }
-
         signInManager.AuthenticationScheme =
             IdentityConstants.ApplicationScheme;
 
@@ -71,23 +52,6 @@ public static class SessionLoginEndpoint
         }
 
         return Results.Ok();
-    }
-
-    private static IResult ValidationProblem(
-        string key,
-        string message)
-    {
-        return Results.ValidationProblem(
-            new Dictionary<
-                string,
-                string[]
-            >
-            {
-                [key] =
-                [
-                    message
-                ]
-            });
     }
 
     public sealed record SessionLoginRequest(

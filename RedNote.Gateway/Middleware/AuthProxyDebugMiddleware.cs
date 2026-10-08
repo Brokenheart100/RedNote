@@ -24,25 +24,26 @@ public sealed class AuthProxyDebugMiddleware(
         }
 
         var started = Stopwatch.GetTimestamp();
+        var traceId = Activity.Current?.TraceId.ToString() ?? context.TraceIdentifier;
         using var scope = logger.BeginScope(new Dictionary<string, object>
         {
-            ["TraceId"] = context.TraceIdentifier,
+            ["TraceId"] = traceId,
             ["RequestId"] = Clean(request.Headers["X-Request-ID"].ToString())
         });
 
         logger.LogInformation(
-            "➡️ 🌐 [GATEWAY DEBUG] {Method} {Path} | TraceId={TraceId} | Scheme={Scheme} | Host={Host} | Origin={Origin} | ContentType={ContentType} | ContentLength={ContentLength}",
-            request.Method, request.Path, context.TraceIdentifier, request.Scheme,
+            "➡️ 🌐 [GATEWAY] {Method} {Path} | TraceId={TraceId} | Scheme={Scheme} | Host={Host} | Origin={Origin} | ContentType={ContentType} | ContentLength={ContentLength}",
+            request.Method, request.Path, traceId, request.Scheme,
             Clean(request.Host.Value), SafeUrl(request.Headers.Origin.ToString()),
             Clean(request.ContentType), request.ContentLength);
         logger.LogInformation(
-            "🔀 📡 [GATEWAY DEBUG] ForwardedProto={ForwardedProto} | ForwardedHost={ForwardedHost} | RemoteIP={RemoteIP} | QueryKeys={QueryKeys}",
+            "🔀 📡 [GATEWAY] ForwardedProto={ForwardedProto} | ForwardedHost={ForwardedHost} | RemoteIP={RemoteIP} | QueryKeys={QueryKeys}",
             Clean(request.Headers["X-Forwarded-Proto"].ToString()),
             Clean(request.Headers["X-Forwarded-Host"].ToString()),
             context.Connection.RemoteIpAddress,
             string.Join(", ", request.Query.Keys.Select(Clean)));
         logger.LogInformation(
-            "🔐 🍪 [GATEWAY DEBUG] HasAuthorization={HasAuthorization} | HasCsrfToken={HasCsrfToken} | CookieCount={CookieCount} | CookieNames={CookieNames} | HasIdentityCookie={HasIdentityCookie}",
+            "🔐 🍪 [GATEWAY] HasAuthorization={HasAuthorization} | HasCsrfToken={HasCsrfToken} | CookieCount={CookieCount} | CookieNames={CookieNames} | HasIdentityCookie={HasIdentityCookie}",
             request.Headers.ContainsKey("Authorization"), request.Headers.ContainsKey("X-CSRF-TOKEN"),
             request.Cookies.Count, string.Join(", ", request.Cookies.Keys.Select(Clean)),
             request.Cookies.Keys.Any(IsIdentityCookie));
@@ -57,8 +58,8 @@ public sealed class AuthProxyDebugMiddleware(
             pipelineFailed = true;
             // Exception messages may contain upstream URLs or credentials.
             logger.LogError(
-                "💥 [GATEWAY DEBUG] Pipeline failed | TraceId={TraceId} | ExceptionType={ExceptionType}",
-                context.TraceIdentifier, exception.GetType().Name);
+                "💥 [GATEWAY] Pipeline failed | TraceId={TraceId} | ExceptionType={ExceptionType}",
+                traceId, exception.GetType().Name);
             throw;
         }
         finally
@@ -66,19 +67,19 @@ public sealed class AuthProxyDebugMiddleware(
             var proxy = context.Features.Get<IReverseProxyFeature>();
             var forwarderError = context.Features.Get<IForwarderErrorFeature>();
             logger.LogInformation(
-                "🎯 🚚 [GATEWAY DEBUG] Route={Route} | Cluster={Cluster} | Destination={Destination} | ForwarderError={ForwarderError} | IsAuthenticated={IsAuthenticated}",
+                "🎯 🚚 [GATEWAY] Route={Route} | Cluster={Cluster} | Destination={Destination} | ForwarderError={ForwarderError} | IsAuthenticated={IsAuthenticated}",
                 proxy?.Route.Config.RouteId, proxy?.Cluster.Config.ClusterId,
                 SafeUrl(proxy?.ProxiedDestination?.Model.Config.Address),
                 forwarderError?.Error, context.User.Identity?.IsAuthenticated == true);
             logger.LogInformation(
-                "⬅️ {Outcome} [GATEWAY DEBUG] {Method} {Path} | TraceId={TraceId} | StatusCode={StatusCode} | DurationMs={DurationMs:F1} | ContentType={ContentType} | Location={Location}",
+                "⬅️ {Outcome} [GATEWAY] {Method} {Path} | TraceId={TraceId} | StatusCode={StatusCode} | DurationMs={DurationMs:F1} | ContentType={ContentType} | Location={Location}",
                 pipelineFailed ? "💥" : context.Response.StatusCode >= 400 ? "⚠️" : "✅", request.Method,
-                request.Path, context.TraceIdentifier, context.Response.StatusCode,
+                request.Path, traceId, context.Response.StatusCode,
                 Stopwatch.GetElapsedTime(started).TotalMilliseconds,
                 Clean(context.Response.ContentType), SafeUrl(context.Response.Headers.Location.ToString()));
             foreach (var cookie in context.Response.Headers.SetCookie)
             {
-                logger.LogInformation("📤 🍪 [GATEWAY DEBUG] SetCookie={CookieSummary}", SummarizeCookie(cookie));
+                logger.LogInformation("📤 🍪 [GATEWAY] SetCookie={CookieSummary}", SummarizeCookie(cookie));
             }
         }
     }

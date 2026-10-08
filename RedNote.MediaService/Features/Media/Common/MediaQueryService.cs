@@ -13,10 +13,6 @@ public sealed class MediaQueryService(
         CancellationToken cancellationToken)
     {
         var mediaIds = requestedIds?.Distinct().ToArray() ?? [];
-        if (mediaIds.Length > 100)
-            throw new MediaQueryValidationException("A maximum of 100 media items is allowed.");
-        if (mediaIds.Contains(Guid.Empty))
-            throw new MediaQueryValidationException("Media id cannot be empty.");
         if (mediaIds.Length == 0)
             return [];
 
@@ -54,9 +50,3 @@ public sealed record MediaReadModel(
     long Size,
     DateTimeOffset CreatedAtUtc,
     string Url);
-
-public sealed class MediaQueryValidationException(string message)
-    : ArgumentException(message, "mediaIds")
-{
-    public string ValidationMessage { get; } = message;
-}

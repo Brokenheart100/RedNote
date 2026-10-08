@@ -1,3 +1,4 @@
+import { eventLogger } from '~~/server/utils/server-logger'
 interface ApiDebugContext {
     startedAt: number
     requestId: string
@@ -76,9 +77,9 @@ export default defineNitroPlugin(nitroApp => {
             requestId,
         } satisfies ApiDebugContext
 
-        console.log('')
-        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
-        console.log(`➡️ [API REQUEST] ${event.method} ${url.pathname}`, {
+        eventLogger(event).log('')
+        eventLogger(event).log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+        eventLogger(event).log(`➡️ [API REQUEST] ${event.method} ${url.pathname}`, {
             requestId,
             path: url.pathname,
             query: sanitize(getQuery(event)),
@@ -106,7 +107,7 @@ export default defineNitroPlugin(nitroApp => {
                     ? performance.now() - context.startedAt
                     : null
 
-            console.log(`⬅️ [API RESPONSE] ${event.method} ${url.pathname}`, {
+            eventLogger(event).log(`⬅️ [API RESPONSE] ${event.method} ${url.pathname}`, {
                 requestId:
                     context?.requestId
                     ?? event.context.requestId
@@ -124,8 +125,8 @@ export default defineNitroPlugin(nitroApp => {
                     sanitize(body),
             })
 
-            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
-            console.log('')
+            eventLogger(event).log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+            eventLogger(event).log('')
         },
     )
 
@@ -153,7 +154,7 @@ export default defineNitroPlugin(nitroApp => {
                     ? performance.now() - context.startedAt
                     : null
 
-            console.error(`❌ [API ERROR] ${event.method} ${url.pathname}`, {
+            eventLogger(event).error(`❌ [API ERROR] ${event.method} ${url.pathname}`, {
                 requestId:
                     context?.requestId
                     ?? event.context.requestId

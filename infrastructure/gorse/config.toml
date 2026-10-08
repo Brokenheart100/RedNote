@@ -1,0 +1,45 @@
+# Credentials and database URLs are provided by Aspire, never committed here.
+[database]
+data_store = "postgres://localhost/gorsedb"
+cache_store = "redis://localhost:6379/0"
+cache_table_prefix = "gorse:"
+[master]
+host = "0.0.0.0"
+http_host = "0.0.0.0"
+http_port = 8088
+n_jobs = 1
+[server]
+# Gorse.NET 0.5.0 exposes recommend(user) without n; cap feed candidates here.
+default_n = 500
+auto_insert_user = true
+auto_insert_item = false
+cache_expire = "10s"
+[recommend]
+cache_size = 500
+[recommend.data_source]
+positive_feedback_types = ["like", "favorite", "click"]
+read_feedback_types = ["read"]
+[[recommend.non-personalized]]
+name = "popular"
+score = "count(feedback, .FeedbackType == 'like' || .FeedbackType == 'favorite')"
+filter = "(now() - item.Timestamp).Hours() < 720"
+[[recommend.item-to-item]]
+name = "neighbors"
+type = "tags"
+column = "item.Labels.tags"
+[[recommend.user-to-user]]
+name = "neighbors"
+type = "items"
+[recommend.collaborative]
+type = "mf"
+fit_period = "10m"
+optimize_period = "0s"
+[recommend.ranker]
+type = "fm"
+fit_period = "10m"
+optimize_period = "0s"
+recommenders = ["collaborative", "item-to-item/neighbors", "user-to-user/neighbors", "non-personalized/popular", "latest"]
+[recommend.fallback]
+recommenders = ["item-to-item/neighbors", "latest"]
+[blob]
+uri = "/var/lib/gorse/blob"

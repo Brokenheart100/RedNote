@@ -14,34 +14,19 @@ namespace RedNote.ContentService.Features.Posts.GetFeed;
 [AllowAnonymous]
 public static class GetFeedEndpoint
 {
-    private const int MaxPageSize = 100;
 
     [WolverineGet("/posts/feed")]
     public static async Task<IResult> Get(
-        int page,
-        int pageSize,
+        [AsParameters] PageQuery paging,
         ClaimsPrincipal principal,
         [FromServices] PostResponseQueryService postResponseQueryService,
         [FromServices] ContentServiceDbContext dbContext,
         CancellationToken cancellationToken)
     {
-        if (page < 1)
-        {
-            return ValidationProblem(
-                "page",
-                "Page must be greater than or equal to 1.");
-        }
-
-        if (pageSize is < 1 or > MaxPageSize)
-        {
-            return ValidationProblem(
-                "pageSize",
-                $"PageSize must be between 1 and {MaxPageSize}.");
-        }
-
+        var (page, pageSize) = (paging.Page, paging.PageSize);
         var query = dbContext.Posts
             .AsNoTracking()
-            .Where(post => post.Status == PostStatus.Published);
+            .Where(post => post.Status == PostStatus.Published && !post.IsHidden);
 
         var totalCount = await query.CountAsync(cancellationToken);
 
@@ -82,12 +67,4 @@ public static class GetFeedEndpoint
         });
     }
 
-    private static IResult ValidationProblem(string key, string message)
-    {
-        return Results.ValidationProblem(
-            new Dictionary<string, string[]>
-            {
-                [key] = [message]
-            });
-    }
 }

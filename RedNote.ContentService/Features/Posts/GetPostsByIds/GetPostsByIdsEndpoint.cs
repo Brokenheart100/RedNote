@@ -14,8 +14,6 @@ namespace RedNote.ContentService.Features.Posts.GetPostsByIds;
 [AllowAnonymous]
 public static class GetPostsByIdsEndpoint
 {
-    private const int MaxPostCount = 100;
-
     [WolverinePost("/posts/batch")]
     public static async Task<IResult> Post(
         GetPostsByIdsRequest request,
@@ -24,8 +22,6 @@ public static class GetPostsByIdsEndpoint
         [FromServices] ContentServiceDbContext dbContext,
         CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(request);
-
         var postIds = (request.PostIds ?? [])
             .Where(postId => postId != Guid.Empty)
             .Distinct()
@@ -36,17 +32,9 @@ public static class GetPostsByIdsEndpoint
             return Results.Ok(Array.Empty<PostResponse>());
         }
 
-        if (postIds.Length > MaxPostCount)
-        {
-            return Results.ValidationProblem(new Dictionary<string, string[]>
-            {
-                ["postIds"] = [$"A maximum of {MaxPostCount} post IDs is allowed."]
-            });
-        }
-
         var posts = await dbContext.Posts
             .AsNoTracking()
-            .Where(post => postIds.Contains(post.Id) && post.Status == PostStatus.Published)
+            .Where(post => postIds.Contains(post.Id) && post.Status == PostStatus.Published && !post.IsHidden)
             .Select(post => new PostReadModel(
                 post.Id,
                 post.AuthorUserId,

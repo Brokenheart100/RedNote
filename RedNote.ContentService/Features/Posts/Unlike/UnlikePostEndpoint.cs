@@ -4,10 +4,10 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using RedNote.ContentService.Domain.Posts;
-using RedNote.ContentService.Features.Posts.Common;
 using RedNote.ContentService.Infrastructure.Persistence;
 using RedNote.Contracts.Content;
-using Wolverine.EntityFrameworkCore;
+using Wolverine;
+using Wolverine.Attributes;
 using Wolverine.Http;
 
 namespace RedNote.ContentService.Features.Posts.Unlike;
@@ -17,16 +17,15 @@ namespace RedNote.ContentService.Features.Posts.Unlike;
 public static class UnlikePostEndpoint
 {
     [WolverineDelete("/posts/{postId:guid}/likes")]
+    [Transactional]
     public static async Task<IResult> Delete(
         Guid postId,
         ClaimsPrincipal principal,
         [FromServices]
-        IDbContextOutbox<ContentServiceDbContext> outbox,
+        ContentServiceDbContext dbContext,
+        [FromServices] IMessageBus bus,
         CancellationToken cancellationToken)
     {
-        var dbContext =
-            outbox.DbContext;
-
         var subject =
             principal.FindFirst("sub")?.Value;
 
@@ -37,9 +36,8 @@ public static class UnlikePostEndpoint
             return Results.Unauthorized();
         }
 
-        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
-        var post = await PostWriteLock.AcquireAsync(dbContext, postId, cancellationToken);
-        if (post is null || post.Status == PostStatus.Deleted)
+        var post = await dbContext.LockPostForWriteAsync(postId, cancellationToken);
+        if (post is null || (post.Status == PostStatus.Deleted || post.IsHidden))
             return Results.NoContent();
 
         var like =
@@ -84,20 +82,17 @@ public static class UnlikePostEndpoint
                     comment =>
                         comment.PostId == postId
                         && comment.Status ==
-                            PostCommentStatus.Published,
+                            PostCommentStatus.Published && !comment.IsHidden && !comment.IsParentHidden,
                     cancellationToken);
 
         post.RecordMetricsChange();
-        await outbox.PublishAsync(
+        await bus.PublishAsync(new RecommendationPreferenceStateChanged(postId, currentUserId, "like", false, post.Revision, DateTimeOffset.UtcNow));
+        await bus.PublishAsync(
             new PostMetricsChanged(
                 postId,
                 likeCount,
                 commentCount,
                 post.Revision));
-
-        await outbox
-            .SaveChangesAndFlushMessagesAsync(
-                cancellationToken);
 
         return Results.NoContent();
     }

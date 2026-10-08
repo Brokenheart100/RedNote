@@ -47,7 +47,8 @@ public static class JwtAuthenticationExtensions
                     ValidateLifetime = true,
                     ValidateIssuerSigningKey = true,
                     ValidTypes = ["at+jwt", "application/at+jwt"],
-                    NameClaimType = "name",
+                    // Scope identities by stable subject; display names remain in the "name" claim.
+                    NameClaimType = "sub",
                     RoleClaimType = "role"
                 };
 

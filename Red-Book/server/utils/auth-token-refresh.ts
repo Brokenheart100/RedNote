@@ -1,5 +1,5 @@
 import type { H3Event } from 'h3'
-import { $fetch as upstreamFetch } from 'ofetch'
+import { createTracedFetch } from './traced-fetch'
 import type { AuthTokenSet } from '../../shared/types/token'
 import { authTokenRepository } from './auth-token-store'
 import { createTokenRefresher, TokenRefreshError } from './token-refresher'
@@ -13,6 +13,7 @@ export async function refreshAuthTokenSet(
     _requestId?: string,
 ): Promise<AuthTokenSet> {
     const config = useRuntimeConfig(event)
+    const upstreamFetch = createTracedFetch(event)
     try {
         return await refresh(sessionId, async current => {
             const discovery = await upstreamFetch<{ token_endpoint?: string }>(

@@ -1,6 +1,7 @@
+import { eventLogger } from '~~/server/utils/server-logger'
 import type { H3Event } from 'h3'
 import type { FetchOptions } from 'ofetch'
-import { $fetch as upstreamFetch } from 'ofetch'
+import { createTracedFetch } from './traced-fetch'
 import { requireAuthenticatedToken } from './authenticated-token'
 import { getFetchErrorData, getFetchErrorStatusCode } from './fetch-error'
 
@@ -22,6 +23,15 @@ export async function gatewayFetch<T>(
     const requestId = event.context.requestId ?? crypto.randomUUID()
     event.context.requestId = requestId
     const headers = new Headers(options.headers)
+    if (options.method === 'POST' && (path === '/api/v1/posts' || /^\/api\/v1\/posts\/[^/]+\/comments$/.test(path))) {
+        const idempotencyKey = getHeader(event, 'Idempotency-Key')
+        if (idempotencyKey !== undefined) {
+            if (!idempotencyKey.trim() || idempotencyKey.length > 128) {
+                throw createError({ statusCode: 400, statusMessage: 'Invalid Idempotency-Key.' })
+            }
+            headers.set('Idempotency-Key', idempotencyKey)
+        }
+    }
     headers.set('X-Request-ID', requestId)
     const auth = options.auth ?? 'required'
     if (auth === 'required' || (auth === 'optional' && (await getUserSession(event)).user)) {
@@ -29,6 +39,7 @@ export async function gatewayFetch<T>(
         headers.set('Authorization', token.authorization)
     }
     const started = performance.now()
+    const upstreamFetch = createTracedFetch(event)
     try {
         return await upstreamFetch<T>(path, {
             baseURL: config.gatewayBaseUrl,
@@ -43,7 +54,7 @@ export async function gatewayFetch<T>(
     }
     catch (error) {
         const statusCode = getFetchErrorStatusCode(error, 502)
-        console.warn('[GATEWAY] Request failed', { requestId, path, statusCode })
+        eventLogger(event).warn('[GATEWAY] Request failed', { requestId, path, statusCode })
         throw createError({
             statusCode,
             statusMessage: statusCode === 401 ? 'Unauthorized' : 'Upstream request failed.',
@@ -51,7 +62,7 @@ export async function gatewayFetch<T>(
         })
     }
     finally {
-        console.info('[GATEWAY]', {
+        eventLogger(event).info('[GATEWAY]', {
             requestId, path, method: options.method ?? 'GET',
             durationMs: Math.round(performance.now() - started),
         })

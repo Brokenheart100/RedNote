@@ -10,47 +10,12 @@ namespace RedNote.IdentityService.Features.Authentication.Register;
 public static class RegisterEndpoint
 {
     [WolverinePost("/auth/register")]
+    [ValidateAntiforgery]
     public static async Task<IResult> Post(
         RegisterRequest request,
         [FromServices] UserManager<ApplicationUser> userManager,
         CancellationToken cancellationToken)
     {
-        if (
-            string.IsNullOrWhiteSpace(
-                request.Email)
-        )
-        {
-            return Results.ValidationProblem(
-                new Dictionary<
-                    string,
-                    string[]
-                >
-                {
-                    ["email"] =
-                    [
-                        "Email is required."
-                    ]
-                });
-        }
-
-        if (
-            string.IsNullOrWhiteSpace(
-                request.Password)
-        )
-        {
-            return Results.ValidationProblem(
-                new Dictionary<
-                    string,
-                    string[]
-                >
-                {
-                    ["password"] =
-                    [
-                        "Password is required."
-                    ]
-                });
-        }
-
         var user =
             new ApplicationUser
             {

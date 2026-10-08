@@ -39,6 +39,9 @@ namespace RedNote.ContentService.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<bool>("IsHidden")
+                        .HasColumnType("boolean");
+
                     b.Property<long>("Revision")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("bigint")
@@ -79,11 +82,20 @@ namespace RedNote.ContentService.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<bool>("IsHidden")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsParentHidden")
+                        .HasColumnType("boolean");
+
                     b.Property<Guid?>("ParentCommentId")
                         .HasColumnType("uuid");
 
                     b.Property<Guid>("PostId")
                         .HasColumnType("uuid");
+
+                    b.Property<long>("Revision")
+                        .HasColumnType("bigint");
 
                     b.Property<int>("Status")
                         .HasColumnType("integer");
@@ -197,6 +209,57 @@ namespace RedNote.ContentService.Infrastructure.Persistence.Migrations
                     b.HasKey("UserId");
 
                     b.ToTable("UserProfileProjections", (string)null);
+                });
+
+            modelBuilder.Entity("RedNote.Contracts.Admin.AdminAuditEntry", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<Guid>("ActorUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Change")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<Guid>("TargetId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("TargetType")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("TraceId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAtUtc");
+
+                    b.HasIndex("ActorUserId", "CreatedAtUtc");
+
+                    b.HasIndex("TargetId", "CreatedAtUtc");
+
+                    b.ToTable("AdminAudit");
                 });
 #pragma warning restore 612, 618
         }

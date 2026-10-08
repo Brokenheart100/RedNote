@@ -12,6 +12,7 @@ internal sealed class OpenIddictSeeder(
     public async Task SeedAsync(
         CancellationToken cancellationToken = default)
     {
+        await SeedAdminAsync(cancellationToken);
         await using var scope =
             serviceProvider.CreateAsyncScope();
 
@@ -51,6 +52,23 @@ internal sealed class OpenIddictSeeder(
             application,
             descriptor,
             cancellationToken);
+    }
+
+    private async Task SeedAdminAsync(CancellationToken cancellationToken)
+    {
+        await using var scope = serviceProvider.CreateAsyncScope();
+        var manager = scope.ServiceProvider.GetRequiredService<IOpenIddictApplicationManager>();
+        var descriptor = CreateDescriptor(GetRequiredAbsoluteUri("OpenIddict:Clients:RedNoteAdmin:RedirectUri"),
+            GetRequiredAbsoluteUri("OpenIddict:Clients:RedNoteAdmin:PostLogoutRedirectUri"));
+        descriptor.ClientId = AdminIdentity.ClientId;
+        descriptor.DisplayName = "RedNote Administration";
+        descriptor.ClientType = OpenIddictConstants.ClientTypes.Confidential;
+        descriptor.ClientSecret = configuration["OpenIddict:Clients:RedNoteAdmin:ClientSecret"]
+            ?? throw new InvalidOperationException("Configure the admin OIDC client secret.");
+        descriptor.Permissions.Add(OpenIddictConstants.Permissions.Prefixes.Scope + AdminIdentity.Scope);
+        var application = await manager.FindByClientIdAsync(AdminIdentity.ClientId, cancellationToken);
+        if (application is null) await manager.CreateAsync(descriptor, cancellationToken);
+        else await manager.UpdateAsync(application, descriptor, cancellationToken);
     }
 
     private static OpenIddictApplicationDescriptor

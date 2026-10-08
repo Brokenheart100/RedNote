@@ -2,12 +2,11 @@ using System.Security.Claims;
 using Asp.Versioning;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using RedNote.ContentService.Domain.Posts;
-using RedNote.ContentService.Features.Posts.Common;
 using RedNote.ContentService.Infrastructure.Persistence;
 using RedNote.Contracts.Content;
-using Wolverine.EntityFrameworkCore;
+using Wolverine;
+using Wolverine.Attributes;
 using Wolverine.Http;
 
 namespace RedNote.ContentService.Features.Posts.Delete;
@@ -17,16 +16,15 @@ namespace RedNote.ContentService.Features.Posts.Delete;
 public static class DeletePostEndpoint
 {
     [WolverineDelete("/posts/{postId:guid}")]
+    [Transactional]
     public static async Task<IResult> Delete(
         Guid postId,
         ClaimsPrincipal principal,
         [FromServices]
-        IDbContextOutbox<ContentServiceDbContext> outbox,
+        ContentServiceDbContext dbContext,
+        [FromServices] IMessageBus bus,
         CancellationToken cancellationToken)
     {
-        var dbContext =
-            outbox.DbContext;
-
         var subject =
             principal.FindFirst("sub")?.Value;
 
@@ -37,8 +35,7 @@ public static class DeletePostEndpoint
             return Results.Unauthorized();
         }
 
-        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
-        var post = await PostWriteLock.AcquireAsync(dbContext, postId, cancellationToken);
+        var post = await dbContext.LockPostForWriteAsync(postId, cancellationToken);
 
         if (
             post is null
@@ -56,16 +53,13 @@ public static class DeletePostEndpoint
         }
 
         post.Delete();
+        await bus.PublishAsync(post.RecommendationState([]));
 
-        await outbox.PublishAsync(
+        await bus.PublishAsync(
             new PostDeleted(
                 post.Id,
                 post.UpdatedAtUtc,
                 post.Revision));
-
-        await outbox
-            .SaveChangesAndFlushMessagesAsync(
-                cancellationToken);
 
         return Results.NoContent();
     }

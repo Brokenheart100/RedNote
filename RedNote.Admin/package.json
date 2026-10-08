@@ -1,0 +1,39 @@
+{
+  "scripts": {
+    "build": "nuxt build",
+    "dev": "nuxt dev",
+    "typecheck": "nuxt typecheck"
+  },
+  "name": "rednote-admin",
+  "private": true,
+  "devDependencies": {
+    "@iconify-json/lucide": "^1.2.132",
+    "vue-tsc": "^3.3.11",
+    "@types/node": "^26.5.1",
+    "typescript": "^6.0.3"
+  },
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "dependencies": {
+    "nuxt": "4.5.2",
+    "vue-router": "^5.3.1",
+    "@opentelemetry/exporter-logs-otlp-grpc": "0.223.0",
+    "@opentelemetry/sdk-node": "0.223.0",
+    "@nuxt/ui": "4.11.1",
+    "@opentelemetry/api-logs": "0.223.0",
+    "nuxt-auth-utils": "^0.5.30",
+    "tailwindcss": "^4.3.3",
+    "@opentelemetry/api": "1.9.0",
+    "vue": "3.5.42",
+    "ioredis": "^5.11.1",
+    "@opentelemetry/sdk-logs": "0.223.0",
+    "@opentelemetry/exporter-trace-otlp-grpc": "0.223.0",
+    "@rednote/bff-infrastructure": "file:../RedNote.Bff.Shared"
+  },
+  "type": "module",
+  "overrides": {
+    "@nuxt/schema": "4.5.2",
+    "@nuxt/kit": "4.5.2"
+  }
+}

@@ -77,6 +77,26 @@ public sealed class PostComment
     public Guid? ParentCommentId { get; private set; }
 
     public PostCommentStatus Status { get; private set; }
+    public bool IsHidden { get; private set; }
+    public bool IsParentHidden { get; private set; }
+    public long Revision { get; private set; } = 1;
+
+    public void SetHidden(bool hidden)
+    {
+        if (Status == PostCommentStatus.Deleted) throw new InvalidOperationException("Deleted comments cannot be moderated.");
+        if (IsHidden == hidden) return;
+        IsHidden = hidden;
+        Revision++;
+        UpdatedAtUtc = DateTimeOffset.UtcNow;
+    }
+
+    public void SetParentHidden(bool hidden)
+    {
+        if (IsParentHidden == hidden) return;
+        IsParentHidden = hidden;
+        Revision++;
+        UpdatedAtUtc = DateTimeOffset.UtcNow;
+    }
 
     public DateTimeOffset CreatedAtUtc { get; private set; }
 
@@ -100,6 +120,7 @@ public sealed class PostComment
 
         Content = content;
         UpdatedAtUtc = DateTimeOffset.UtcNow;
+        Revision++;
     }
 
     public void Delete()
@@ -110,6 +131,7 @@ public sealed class PostComment
         }
 
         Status = PostCommentStatus.Deleted;
+        Revision++;
         UpdatedAtUtc = DateTimeOffset.UtcNow;
     }
 }

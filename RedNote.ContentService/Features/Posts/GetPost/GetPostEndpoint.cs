@@ -24,7 +24,7 @@ public static class GetPostEndpoint
     {
         var post = await dbContext.Posts
             .AsNoTracking()
-            .Where(post => post.Id == postId && post.Status == PostStatus.Published)
+            .Where(post => post.Id == postId && post.Status == PostStatus.Published && !post.IsHidden)
             .Select(post => new PostReadModel(
                 post.Id,
                 post.AuthorUserId,

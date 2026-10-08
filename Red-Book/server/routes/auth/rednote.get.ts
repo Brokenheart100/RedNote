@@ -1,3 +1,4 @@
+import { eventLogger } from '~~/server/utils/server-logger'
 import { getAuthTokenSet, setAuthTokenSet, removeAuthTokenSet } from '../../utils/auth-token-store'
 
 export default defineEventHandler(event => {
@@ -45,7 +46,7 @@ export default defineEventHandler(event => {
         return sendRedirect(event, '/', 302)
     },
     onError(event, _error) {
-        console.warn('[OIDC] Authentication failed.')
+        eventLogger(event).warn('[OIDC] Authentication failed.')
         return sendRedirect(event, '/login?oidcError=1', 302)
     },
     })(event)

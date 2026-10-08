@@ -51,7 +51,7 @@ internal static class PostInteractionQuery
                         postIds.Contains(comment.PostId)
                         &&
                         comment.Status ==
-                        PostCommentStatus.Published)
+                        PostCommentStatus.Published && !comment.IsHidden && !comment.IsParentHidden)
                 .GroupBy(
                     comment =>
                         comment.PostId)

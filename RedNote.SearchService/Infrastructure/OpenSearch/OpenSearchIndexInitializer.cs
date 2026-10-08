@@ -48,6 +48,8 @@ public sealed partial class OpenSearchIndexInitializer(
                         mapping => mapping
                             .Properties(properties => properties
                                 .Boolean(boolean => boolean.Name(document => document.IsDeleted))
+                                .Boolean(boolean => boolean.Name(document => document.IsHidden))
+                                .Number(number => number.Name(document => document.VisibilityRevision).Type(NumberType.Long))
                                 .Number(number => number.Name(document => document.MetadataRevision).Type(NumberType.Long))
                                 .Number(number => number.Name(document => document.MetricsRevision).Type(NumberType.Long))
 

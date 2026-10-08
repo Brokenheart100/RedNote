@@ -1,54 +1,24 @@
-using Aspire.Hosting.Docker.Resources.ServiceNodes;
+using JasperFx.Aspire;
+using RedNote.AppHost.Extensions;
 
 var builder = DistributedApplication.CreateBuilder(args);
 
-var compose = builder
-    .AddDockerComposeEnvironment("compose")
-    .ConfigureComposeFile(composeFile =>
-    {
-        composeFile.Name = "rednote";
-        composeFile.Volumes["identity-keys"] = new Volume { Name = "identity-keys" };
-        composeFile.Services["postgres"].Healthcheck = new Healthcheck
-        {
-            Test = ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER"],
-            Interval = "5s",
-            Timeout = "3s",
-            Retries = 20,
-            StartPeriod = "10s"
-        };
-        composeFile.Services["opensearch"].Healthcheck = new Healthcheck
-        {
-            Test = ["CMD-SHELL", "curl -fsS http://localhost:9200/_cluster/health >/dev/null"],
-            Interval = "5s",
-            Timeout = "5s",
-            Retries = 30,
-            StartPeriod = "30s"
-        };
-        foreach (var service in composeFile.Services.Values)
-        {
-            if (service.DependsOn.TryGetValue("postgres", out var dependency))
-                dependency.Condition = "service_healthy";
-            if (service.DependsOn.TryGetValue("opensearch", out var searchDependency))
-                searchDependency.Condition = "service_healthy";
-            if (!service.Name.EndsWith("-migrations", StringComparison.Ordinal)
-                && !service.Name.EndsWith("-init", StringComparison.Ordinal))
-                service.Restart = "unless-stopped";
-        }
-    });
+builder.ConfigureRedNoteCompose();
 
 var gatewayPublicUrl = builder.AddParameter(
     "gateway-public-url",
-    "http://localhost:8080",
+    builder.ExecutionContext.IsPublishMode ? "http://localhost:8080" : "https://localhost:8443",
     publishValueAsDefault: true,
     secret: false);
 
 var frontendPublicUrl = builder.AddParameter(
     "frontend-public-url",
-    "http://localhost:3000",
+    builder.ExecutionContext.IsPublishMode ? "http://localhost:3000" : "https://localhost:8443",
     publishValueAsDefault: true,
     secret: false);
 
-var mediaPublicUrl = builder.AddParameter("media-public-url", "http://localhost:9000",
+var mediaPublicUrl = builder.AddParameter("media-public-url",
+    builder.ExecutionContext.IsPublishMode ? "http://localhost:9000" : "https://localhost:8443",
     publishValueAsDefault: true, secret: false);
 
 var nuxtSessionPassword = builder.AddParameter(
@@ -77,6 +47,9 @@ var rabbitMq = builder
 
 var redis = builder
     .AddRedis("redis")
+    .WithModule(RedisModules.Json)
+    .WithModule(RedisModules.Search)
+    .WithModule(RedisModules.TimeSeries)
     .WithDataVolume();
 
 var postgres = builder
@@ -89,21 +62,22 @@ var userDatabase = postgres.AddDatabase("userdb");
 var contentDatabase = postgres.AddDatabase("contentdb");
 var mediaDatabase = postgres.AddDatabase("mediadb");
 var searchDatabase = postgres.AddDatabase("searchdb");
+var adminDatabase = postgres.AddDatabase("admindb");
+var recommendationDatabase = postgres.AddDatabase("recommendationdb");
 
 var minio = builder
     .AddContainer("minio", "minio/minio")
     .WithArgs("server", "/data", "--console-address", ":9001")
     .WithEnvironment("MINIO_ROOT_USER", minioAccessKey)
     .WithEnvironment("MINIO_ROOT_PASSWORD", minioSecretKey)
-    .WithHttpEndpoint(port: 9000, targetPort: 9000, name: "s3")
-    .WithHttpEndpoint(port: 9001, targetPort: 9001, name: "console")
+    .WithHttpEndpoint(port: builder.ExecutionContext.IsPublishMode ? 9000 : null, targetPort: 9000, name: "s3")
+    .WithHttpEndpoint(port: builder.ExecutionContext.IsPublishMode ? 9001 : null, targetPort: 9001, name: "console")
     .WithExternalHttpEndpoints()
     .WithVolume("minio-data", "/data");
 
 var identityService = builder
     .AddProject<Projects.RedNote_IdentityService>("identity-service")
     .WithEnvironment("Security__RequireHttps", "false")
-    .WithEnvironment("Security__TrustAnyForwardedHeaders", "true")
     .WithReference(identityDatabase)
     .WaitFor(identityDatabase);
 
@@ -141,23 +115,10 @@ var contentService = builder
     .WaitFor(identityService)
     .WaitFor(mediaService);
 
-// HTTP/2 without TLS needs a dedicated port inside the Docker network.
-if (builder.ExecutionContext.IsPublishMode)
-{
-    mediaService.WithHttpEndpoint(targetPort: 8081, name: "grpc")
-        .WithEnvironment("Kestrel__Endpoints__Http__Url", "http://0.0.0.0:8080")
-        .WithEnvironment("Kestrel__Endpoints__Http__Protocols", "Http1")
-        .WithEnvironment("Kestrel__Endpoints__Grpc__Url", "http://0.0.0.0:8081")
-        .WithEnvironment("Kestrel__Endpoints__Grpc__Protocols", "Http2");
-    contentService.WithEnvironment("Grpc__MediaAddress", mediaService.GetEndpoint("grpc"));
-    identityService.PublishAsDockerComposeService((_, service) =>
-        service.AddVolume(new Volume { Name = "identity-keys", Source = "identity-keys", Target = "/home/app", Type = "volume" }))
-        .WithEnvironment("HOME", "/home/app");
-}
-else
-{
-    contentService.WithEnvironment("Grpc__MediaAddress", mediaService.GetEndpoint("https"));
-}
+var recommendationService = builder.AddRedNoteRecommendations(postgres, redis, rabbitMq, contentService, recommendationDatabase);
+
+builder.ConfigureMediaTransport(mediaService, contentService);
+builder.ConfigureIdentityKeyPersistence(identityService);
 
 var openSearch = builder
     .AddContainer("opensearch", "opensearchproject/opensearch", "3.8.0")
@@ -170,25 +131,21 @@ var openSearch = builder
 var searchService = builder
     .AddProject<Projects.RedNote_SearchService>("search-service")
     .WithReference(searchDatabase)
+    .WithReference(identityService)
     .WithReference(openSearch.GetEndpoint("http"))
     .WithReference(rabbitMq)
     .WaitFor(searchDatabase)
+    .WaitFor(identityService)
     .WaitFor(rabbitMq)
     .WaitFor(openSearch)
     .WithEnvironment("OpenSearch__Url", openSearch.GetEndpoint("http"));
 
-if (builder.ExecutionContext.IsPublishMode)
-{
-    // Wolverine owns this database's schema; ensure the database itself exists on a fresh volume.
-    var searchDatabaseInit = builder.AddContainer("search-database-init", "postgres", "18.3")
-        .WithEnvironment("PGHOST", "postgres")
-        .WithEnvironment("PGUSER", "postgres")
-        .WithEnvironment("PGPASSWORD", postgres.Resource.PasswordParameter!)
-        .WithArgs("sh", "-c", "printf '%s\\n' \"SELECT 'CREATE DATABASE searchdb' WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = 'searchdb');\" '\\gexec' | psql -v ON_ERROR_STOP=1")
-        .WaitFor(postgres)
-        .PublishAsDockerComposeService((_, service) => service.Restart = "no");
-    searchService.WaitForCompletion(searchDatabaseInit);
-}
+var adminService = builder.AddProject<Projects.RedNote_AdminService>("admin-service")
+    .WithReference(adminDatabase).WaitFor(adminDatabase)
+    .WithReference(identityService).WaitFor(identityService)
+    .WithReference(contentService).WaitFor(contentService)
+    .WithReference(userService).WaitFor(userService)
+    .WithReference(rabbitMq).WaitFor(rabbitMq);
 
 var gateway = builder
     .AddProject<Projects.RedNote_Gateway>("gateway")
@@ -197,72 +154,98 @@ var gateway = builder
     .WithReference(contentService)
     .WithReference(mediaService)
     .WithReference(searchService)
+    .WithReference(adminService)
+    .WithReference(recommendationService)
     .WaitFor(identityService)
     .WaitFor(userService)
     .WaitFor(contentService)
     .WaitFor(mediaService)
     .WaitFor(searchService)
+    .WaitFor(adminService)
     .WithEnvironment("Cors__AllowedOrigins__0", frontendPublicUrl)
-    .WithHttpEndpoint(port: 8080, targetPort: 8080, name: "http", isProxied: false)
     .WithExternalHttpEndpoints();
+
+if (builder.ExecutionContext.IsPublishMode)
+{
+    gateway.WithHttpEndpoint(port: 8080, targetPort: 8080, name: "http", isProxied: false);
+}
+else
+{
+    gateway.WithHttpsEndpoint(port: 8443, targetPort: 8443, name: "https", isProxied: false)
+        .WithEnvironment("ReverseProxy__Clusters__minio-cluster__Destinations__minio__Address", minio.GetEndpoint("s3"));
+    identityService.WithEnvironment("Security__RequireHttps", "true");
+
+}
+
+// Back-end readiness endpoints are required by YARP's active health probes.
+foreach (var service in new[] { identityService, userService, contentService, mediaService, searchService, adminService, recommendationService })
+    service.WithEnvironment("HealthChecks__Enabled", "true");
+
+// Diagnostic commands use the service's resolved Aspire environment.
+if (builder.ExecutionContext.IsRunMode)
+{
+    identityService.WithJasperFxCommands();
+    userService.WithJasperFxCommands();
+    contentService.WithJasperFxCommands();
+    mediaService.WithJasperFxCommands();
+    searchService.WithJasperFxCommands();
+    adminService.WithJasperFxCommands();
+    recommendationService.WithJasperFxCommands();
+}
+
+var gatewayInternalEndpoint = gateway.GetEndpoint(builder.ExecutionContext.IsPublishMode ? "http" : "https");
 
 var jwtIssuer = ReferenceExpression.Create($"{gatewayPublicUrl}/");
 
-var jwtMetadataAddress = ReferenceExpression.Create($"{gateway.GetEndpoint("http")}/.well-known/openid-configuration");
+var jwtMetadataAddress = ReferenceExpression.Create($"{gatewayInternalEndpoint}/.well-known/openid-configuration");
 
-gateway
-    .WithEnvironment("Jwt__Issuer", jwtIssuer)
-    .WithEnvironment("Jwt__Audience", jwtAudience)
-    .WithEnvironment("Jwt__MetadataAddress", jwtMetadataAddress)
-    .WithEnvironment("Jwt__RequireHttpsMetadata", "false");
-
-userService
-    .WithEnvironment("Jwt__Issuer", jwtIssuer)
-    .WithEnvironment("Jwt__Audience", jwtAudience)
-    .WithEnvironment("Jwt__MetadataAddress", jwtMetadataAddress)
-    .WithEnvironment("Jwt__RequireHttpsMetadata", "false");
-
-contentService
-    .WithEnvironment("Jwt__Issuer", jwtIssuer)
-    .WithEnvironment("Jwt__Audience", jwtAudience)
-    .WithEnvironment("Jwt__MetadataAddress", jwtMetadataAddress)
-    .WithEnvironment("Jwt__RequireHttpsMetadata", "false");
-
-mediaService
-    .WithEnvironment("Jwt__Issuer", jwtIssuer)
-    .WithEnvironment("Jwt__Audience", jwtAudience)
-    .WithEnvironment("Jwt__MetadataAddress", jwtMetadataAddress)
-    .WithEnvironment("Jwt__RequireHttpsMetadata", "false");
+searchService.WithJwtConfiguration(jwtIssuer, jwtAudience, jwtMetadataAddress);
+identityService.WithJwtConfiguration(jwtIssuer, jwtAudience, jwtMetadataAddress);
+gateway.WithJwtConfiguration(jwtIssuer, jwtAudience, jwtMetadataAddress);
+userService.WithJwtConfiguration(jwtIssuer, jwtAudience, jwtMetadataAddress);
+contentService.WithJwtConfiguration(jwtIssuer, jwtAudience, jwtMetadataAddress);
+mediaService.WithJwtConfiguration(jwtIssuer, jwtAudience, jwtMetadataAddress);
+adminService.WithJwtConfiguration(jwtIssuer, jwtAudience, jwtMetadataAddress);
+recommendationService.WithJwtConfiguration(jwtIssuer, jwtAudience, jwtMetadataAddress);
 
 #pragma warning disable ASPIREJAVASCRIPT001, ASPIREDOCKERFILEBUILDER001
 
+#pragma warning disable ASPIREBROWSERLOGS001
 var frontend = builder
     .AddViteApp("frontend", "../Red-Book")
+    .WithBrowserLogs(browser: "msedge", userDataMode: BrowserUserDataMode.Isolated)
     .WithNpm()
     .PublishAsNodeServer(entryPoint: ".output/server/index.mjs", outputPath: ".output")
-    .WithDockerfileBaseImage(buildImage: "node:24-bookworm-slim", runtimeImage: "node:24-bookworm-slim")
+    .WithSharedBffInfrastructure()
     .WithReference(gateway)
     .WaitFor(gateway)
     .WithReference(redis)
     .WaitFor(redis)
-    .WithHttpEndpoint(3000)
-    .WithEnvironment("NUXT_GATEWAY_BASE_URL", gateway.GetEndpoint("http"))
+    .WithHttpEndpoint(port: builder.ExecutionContext.IsPublishMode ? 3000 : null)
+    .WithEnvironment("NUXT_GATEWAY_BASE_URL", gatewayInternalEndpoint)
     .WithEnvironment("NUXT_PUBLIC_API_BASE_URL", gatewayPublicUrl)
     .WithEnvironment("NUXT_OAUTH_OIDC_CLIENT_ID", "rednote-web")
-    .WithEnvironment("NUXT_OAUTH_OIDC_OPENID_CONFIG", ReferenceExpression.Create($"{gateway.GetEndpoint("http")}/.well-known/openid-configuration"))
+    .WithEnvironment("NUXT_OAUTH_OIDC_OPENID_CONFIG", ReferenceExpression.Create($"{gatewayInternalEndpoint}/.well-known/openid-configuration"))
     .WithEnvironment("NUXT_OAUTH_OIDC_REDIRECT_URL", ReferenceExpression.Create($"{frontendPublicUrl}/auth/rednote"))
     .WithEnvironment("NUXT_SESSION_PASSWORD", nuxtSessionPassword)
     .WithExternalHttpEndpoints();
 
-gateway.WithEnvironment(
-    "ReverseProxy__Clusters__frontend-cluster__Destinations__frontend__Address",
-    frontend.GetEndpoint("http"));
+#pragma warning restore ASPIREBROWSERLOGS001
+if (builder.ExecutionContext.IsRunMode)
+{
+    frontend.WithCertificateTrustScope(CertificateTrustScope.None)
+        .WithEnvironment("NODE_USE_SYSTEM_CA", "1")
+        .WithEnvironment("NODE_EXTRA_CA_CERTS", builder.ExportDevelopmentCertificate())
+        .WithEnvironment("NUXT_SESSION_COOKIE_SECURE", "true");
+}
+
+gateway.WithEnvironment("ReverseProxy__Clusters__frontend-cluster__Destinations__frontend__Address", frontend.GetEndpoint("http"));
+builder.AddRedNoteAdministration(gateway, identityService, redis, gatewayInternalEndpoint, gatewayPublicUrl);
 
 // Explicit local Docker profile; does not weaken the production cookie default.
 if (builder.ExecutionContext.IsPublishMode && builder.Configuration["LocalDocker"] == "true")
 {
-    identityService.WithEnvironment("Security__RequireHttps", "false")
-        .WithEnvironment("Security__AllowHttpCookies", "true");
+    identityService.WithEnvironment("Security__AllowHttpCookies", "true");
     frontend.WithEnvironment("NUXT_SESSION_COOKIE_SECURE", "false");
 }
 
@@ -273,44 +256,14 @@ identityService
     .WithEnvironment("OpenIddict__Clients__RedNoteWeb__PostLogoutRedirectUri", frontendPublicUrl);
 
 
-var identityMigrations = identityService
-    .AddEFMigrations("identity-migrations")
-    .WithReference(identityDatabase)
-    .WaitFor(identityDatabase)
-    .RunDatabaseUpdateOnStart()
-    .PublishAsMigrationBundle(publishContainer: true, baseImage: "mcr.microsoft.com/dotnet/aspnet:10.0")
-    .PublishAsDockerComposeService((_, service) => service.Restart = "no");
-
-identityService.WaitForCompletion(identityMigrations);
-
-var userMigrations = userService
-    .AddEFMigrations("user-migrations")
-    .WithReference(userDatabase)
-    .WaitFor(userDatabase)
-    .RunDatabaseUpdateOnStart()
-    .PublishAsMigrationBundle(publishContainer: true, baseImage: "mcr.microsoft.com/dotnet/aspnet:10.0")
-    .PublishAsDockerComposeService((_, service) => service.Restart = "no");
-
-userService.WaitForCompletion(userMigrations);
-
-var mediaMigrations = mediaService
-    .AddEFMigrations("media-migrations")
-    .WithReference(mediaDatabase)
-    .WaitFor(mediaDatabase)
-    .RunDatabaseUpdateOnStart()
-    .PublishAsMigrationBundle(publishContainer: true, baseImage: "mcr.microsoft.com/dotnet/aspnet:10.0")
-    .PublishAsDockerComposeService((_, service) => service.Restart = "no");
-
-mediaService.WaitForCompletion(mediaMigrations);
-
-var contentMigrations = contentService
-    .AddEFMigrations("content-migrations")
-    .WithReference(contentDatabase)
-    .WaitFor(contentDatabase)
-    .RunDatabaseUpdateOnStart()
-    .PublishAsMigrationBundle(publishContainer: true, baseImage: "mcr.microsoft.com/dotnet/aspnet:10.0")
-    .PublishAsDockerComposeService((_, service) => service.Restart = "no");
-
-contentService.WaitForCompletion(contentMigrations);
+// Register migrations after all project configuration and diagnostic commands.
+// The migration tooling captures project execution configuration during registration.
+identityService.AddDatabaseMigrations(identityDatabase, "identity-migrations");
+userService.AddDatabaseMigrations(userDatabase, "user-migrations");
+mediaService.AddDatabaseMigrations(mediaDatabase, "media-migrations");
+contentService.AddDatabaseMigrations(contentDatabase, "content-migrations");
+searchService.AddDatabaseMigrations(searchDatabase, "search-migrations");
+adminService.AddDatabaseMigrations(adminDatabase, "admin-migrations");
+recommendationService.AddDatabaseMigrations(recommendationDatabase, "recommendation-migrations");
 
 builder.Build().Run();

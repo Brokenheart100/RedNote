@@ -25,6 +25,7 @@
     <PackageReference Include="WolverineFx.RabbitMQ" />
     <PackageReference Include="WolverineFx.RuntimeCompilation" />
     <PackageReference Include="WolverineFx.Http" />
+    <PackageReference Include="WolverineFx.Http.FluentValidation" />
     <PackageReference Include="WolverineFx.EntityFrameworkCore" />
     <PackageReference Include="WolverineFx.Postgresql" />
     <PackageReference Include="WolverineFx.Grpc" />

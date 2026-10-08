@@ -16,8 +16,7 @@ public static class GetMyFavoritePostsEndpoint
 {
     [WolverineGet("/posts/favorites")]
     public static async Task<IResult> Get(
-        int page,
-        int pageSize,
+        [AsParameters] PageQuery paging,
         ClaimsPrincipal principal,
         [FromServices]
         PostResponseQueryService postResponseQueryService,
@@ -25,6 +24,7 @@ public static class GetMyFavoritePostsEndpoint
         ContentServiceDbContext dbContext,
         CancellationToken cancellationToken)
     {
+        var (page, pageSize) = (paging.Page, paging.PageSize);
         var subject =
             principal.FindFirst("sub")?.Value;
 
@@ -33,20 +33,6 @@ public static class GetMyFavoritePostsEndpoint
                 out var currentUserId))
         {
             return Results.Unauthorized();
-        }
-
-        if (page < 1)
-        {
-            return ValidationProblem(
-                "page",
-                "Page must be greater than or equal to 1.");
-        }
-
-        if (pageSize is < 1 or > 100)
-        {
-            return ValidationProblem(
-                "pageSize",
-                "PageSize must be between 1 and 100.");
         }
 
         var favoritesQuery =
@@ -75,7 +61,7 @@ public static class GetMyFavoritePostsEndpoint
                 .Where(
                     item =>
                         item.Post.Status ==
-                        PostStatus.Published);
+                        PostStatus.Published && !item.Post.IsHidden);
 
         var totalCount =
             await favoritesQuery.CountAsync(
@@ -123,17 +109,4 @@ public static class GetMyFavoritePostsEndpoint
             });
     }
 
-    private static IResult ValidationProblem(
-        string key,
-        string message)
-    {
-        return Results.ValidationProblem(
-            new Dictionary<string, string[]>
-            {
-                [key] =
-                [
-                    message
-                ]
-            });
-    }
 }

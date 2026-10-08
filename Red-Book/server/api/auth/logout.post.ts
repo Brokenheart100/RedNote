@@ -1,3 +1,5 @@
+import { createTracedFetch } from '~~/server/utils/traced-fetch'
+import { eventLogger } from '~~/server/utils/server-logger'
 import {
     getIdentityCsrfContext,
     getUpstreamSetCookies,
@@ -28,6 +30,7 @@ export default defineEventHandler(async event => {
 
     try {
         const csrf = await getIdentityCsrfContext(
+            event,
             config.gatewayBaseUrl,
             requestId,
             browserCookie,
@@ -46,7 +49,7 @@ export default defineEventHandler(async event => {
             .filter((value): value is string => Boolean(value))
             .join('; ')
 
-        const logoutResponse = await $fetch.raw<void>(
+        const logoutResponse = await createTracedFetch(event).raw<void>(
             '/api/v1/auth/session/logout',
             {
                 baseURL: config.gatewayBaseUrl,
@@ -87,7 +90,7 @@ export default defineEventHandler(async event => {
             error, 502,
         )
 
-        console.error('❌ [BFF] Identity logout failed', {
+        eventLogger(event).error('❌ [BFF] Identity logout failed', {
             requestId,
             statusCode,
         })

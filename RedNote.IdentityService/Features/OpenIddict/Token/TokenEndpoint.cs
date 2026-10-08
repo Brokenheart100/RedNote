@@ -8,6 +8,7 @@ using OpenIddict.Abstractions;
 using OpenIddict.Server.AspNetCore;
 using RedNote.IdentityService.Domain.Users;
 using Wolverine.Http;
+using RedNote.IdentityService.Infrastructure.OpenIddict;
 
 using static OpenIddict.Abstractions.OpenIddictConstants;
 
@@ -100,6 +101,9 @@ public static class TokenEndpoint
             return InvalidGrant(
                 "The token is no longer valid.");
         }
+        var adminClient = request.ClientId == AdminIdentity.ClientId;
+        if (adminClient && (!await AdminIdentity.EligibleAsync(user, userManager) || !AdminIdentity.FreshMfa(sourcePrincipal)))
+            return InvalidGrant("Administrator authorization has expired.");
 
         var identity =
             new ClaimsIdentity(
@@ -151,6 +155,7 @@ public static class TokenEndpoint
 
         principal.SetResources(
             sourcePrincipal.GetResources());
+        if (adminClient) AdminIdentity.SetClaims(principal, user, sourcePrincipal.FindFirst(AdminIdentity.MfaTime)!.Value);
 
         /*
          * SecurityStamp 可以参与内部 token 校验，

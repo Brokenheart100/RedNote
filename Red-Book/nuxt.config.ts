@@ -1,3 +1,7 @@
+import { createRequire } from 'node:module'
+
+const telemetryApi = createRequire(import.meta.url).resolve('@opentelemetry/api')
+
 export default defineNuxtConfig({
   compatibilityDate: '2026-09-01',
 
@@ -36,8 +40,14 @@ export default defineNuxtConfig({
 
   nitro: {
     preset: 'node-server',
-
-
+    // Resolve the API through Node's supported entry rather than Rollup's "module" condition.
+    alias: {
+      '@opentelemetry/api': telemetryApi,
+    },
+    // Keep Node telemetry SDKs as runtime dependencies instead of rebundling their ESM helpers.
+    externals: {
+      external: ['@opentelemetry/'],
+    },
   },
 
   runtimeConfig: {

@@ -3,6 +3,8 @@ namespace RedNote.SearchService.Domain.Posts;
 public sealed class PostSearchDocument
 {
     public bool IsDeleted { get; init; }
+    public bool IsHidden { get; init; }
+    public long VisibilityRevision { get; init; }
 
     public long MetadataRevision { get; init; }
 

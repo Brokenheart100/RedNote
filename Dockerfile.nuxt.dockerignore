@@ -1,0 +1,22 @@
+# The shared BFF package needs the repository root as build context.
+# Only these application sources may enter that context.
+*
+!Dockerfile.nuxt
+!Red-Book/
+!Red-Book/**
+!RedNote.Admin/
+!RedNote.Admin/**
+!RedNote.Bff.Shared/
+!RedNote.Bff.Shared/**
+**/node_modules
+**/dist
+**/.nuxt
+**/.output
+**/.nitro
+**/.data
+**/.cache
+**/.env
+**/.env.*
+**/*.log
+**/test-results
+**/playwright-report

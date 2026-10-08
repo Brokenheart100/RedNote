@@ -1,3 +1,5 @@
+using Wolverine;
+using Wolverine.Attributes;
 using System.Security.Claims;
 using Asp.Versioning;
 using Microsoft.AspNetCore.Authorization;
@@ -14,11 +16,13 @@ namespace RedNote.ContentService.Features.Posts.Favorite;
 public static class FavoritePostEndpoint
 {
     [WolverinePost("/api/v1/posts/{postId:guid}/favorites")]
+    [Transactional]
     public static async Task<IResult> Post(
         Guid postId,
         ClaimsPrincipal principal,
         [FromServices]
         ContentServiceDbContext dbContext,
+        [FromServices] IMessageBus bus,
         CancellationToken cancellationToken)
     {
         var subject =
@@ -31,20 +35,8 @@ public static class FavoritePostEndpoint
             return Results.Unauthorized();
         }
 
-        var postExists =
-            await dbContext.Posts
-                .AsNoTracking()
-                .AnyAsync(
-                    post =>
-                        post.Id == postId
-                        && post.Status ==
-                            PostStatus.Published,
-                    cancellationToken);
-
-        if (!postExists)
-        {
-            return Results.NotFound();
-        }
+        var post = await dbContext.LockPostForWriteAsync(postId, cancellationToken);
+        if (post is null || post.Status != PostStatus.Published || post.IsHidden) return Results.NotFound();
 
         var alreadyFavorited =
             await dbContext.PostFavorites
@@ -66,8 +58,8 @@ public static class FavoritePostEndpoint
                 postId,
                 userId));
 
-        await dbContext.SaveChangesAsync(
-            cancellationToken);
+        post.RecordInteractionChange();
+        await bus.PublishAsync(new RecommendationPreferenceStateChanged(postId, userId, "favorite", true, post.Revision, DateTimeOffset.UtcNow));
 
         return Results.NoContent();
     }

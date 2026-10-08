@@ -6,6 +6,7 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 $taskRoot = Split-Path $PSScriptRoot -Parent
+$taskAdminSecretEnvironment = @{}
 $taskDocker = Get-Command docker -ErrorAction SilentlyContinue
 if (-not $taskDocker) {
     $taskDockerPath = Join-Path $env:LOCALAPPDATA 'Programs/DockerDesktop/resources/bin'
@@ -14,6 +15,17 @@ if (-not $taskDocker) {
 }
 Push-Location $taskRoot
 try {
+    & (Join-Path $PSScriptRoot 'initialize-admin-secrets.ps1')
+    # Publish mode does not load development User Secrets automatically.
+    # Supply the two existing local secrets through the process environment.
+    [xml]$taskProjectXml = Get-Content (Join-Path $taskRoot 'RedNote.AppHost/RedNote.AppHost.csproj')
+    $taskSecretId = $taskProjectXml.Project.PropertyGroup.UserSecretsId | Where-Object { $_ } | Select-Object -First 1
+    $taskSecrets = Get-Content (Join-Path $env:APPDATA "Microsoft/UserSecrets/$taskSecretId/secrets.json") -Raw | ConvertFrom-Json -AsHashtable
+    foreach ($taskParameter in @('admin-oidc-secret','admin-session-password','gorse-api-key','gorse-dashboard-password')) {
+        $taskVariable = "Parameters__$taskParameter"
+        $taskAdminSecretEnvironment[$taskVariable] = [Environment]::GetEnvironmentVariable($taskVariable)
+        [Environment]::SetEnvironmentVariable($taskVariable,$taskSecrets["Parameters:$taskParameter"])
+    }
     & docker info --format '{{.ServerVersion}}'
     if ($LASTEXITCODE -ne 0) { throw 'Start Docker Desktop first.' }
     & aspire deploy --apphost RedNote.AppHost/RedNote.AppHost.csproj `
@@ -28,4 +40,7 @@ try {
     & docker compose --project-name $taskComposeProject.Name --env-file RedNote.AppHost/aspire-output/.env.Production `
         -f $taskComposeFile ps -a
     if ($LASTEXITCODE -ne 0) { throw 'Unable to inspect Docker services.' }
-} finally { Pop-Location }
+} finally {
+    foreach ($taskEntry in $taskAdminSecretEnvironment.GetEnumerator()) { [Environment]::SetEnvironmentVariable($taskEntry.Key,$taskEntry.Value) }
+    Pop-Location
+}

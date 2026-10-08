@@ -1,3 +1,5 @@
+import { createTracedFetch } from '~~/server/utils/traced-fetch'
+import { eventLogger } from '~~/server/utils/server-logger'
 import {
     appendUpstreamSetCookies,
     getIdentityCsrfContext,
@@ -34,11 +36,12 @@ export default defineEventHandler(async event => {
          * Browser 不需要知道 Antiforgery Cookie/Token。
          */
         const csrf = await getIdentityCsrfContext(
+            event,
             config.gatewayBaseUrl,
             requestId,
         )
 
-        const loginResponse = await $fetch.raw<void>(
+        const loginResponse = await createTracedFetch(event).raw<void>(
             '/api/v1/auth/session/login',
             {
                 baseURL: config.gatewayBaseUrl,
@@ -73,7 +76,7 @@ export default defineEventHandler(async event => {
         )
 
         if (!hasIdentityCookie) {
-            console.error('❌ [BFF] Identity 登录成功但没有返回 Application Cookie', {
+            eventLogger(event).error('❌ [BFF] Identity 登录成功但没有返回 Application Cookie', {
                 requestId,
             })
 
@@ -88,7 +91,7 @@ export default defineEventHandler(async event => {
             identitySetCookies,
         )
 
-        console.log('✅ [BFF] Identity Application Cookie 已建立', {
+        eventLogger(event).log('✅ [BFF] Identity Application Cookie 已建立', {
             requestId,
         })
 
@@ -100,13 +103,13 @@ export default defineEventHandler(async event => {
         const statusCode = getFetchErrorStatusCode(error, 502)
 
         if (statusCode >= 500) {
-            console.error('❌ [BFF] 登录请求失败', {
+            eventLogger(event).error('❌ [BFF] 登录请求失败', {
                 requestId,
                 statusCode,
             })
         }
         else {
-            console.warn('⚠️ [BFF] 登录请求失败', {
+            eventLogger(event).warn('⚠️ [BFF] 登录请求失败', {
                 requestId,
                 statusCode,
             })

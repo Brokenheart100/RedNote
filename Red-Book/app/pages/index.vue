@@ -1,150 +1,89 @@
 <script setup lang="ts">
-import type {
-  FeedResponse,
-  PostResponse,
-} from '~~/shared/types/posts'
+import type { FeedResponse, RecommendationFeedResponse, PostResponse } from '~~/shared/types/posts'
 
-definePageMeta({
-  middleware: 'auth',
-})
+definePageMeta({ middleware: 'auth' })
+useSeoMeta({ title: '首页', description: '发现你感兴趣的内容' })
 
-useSeoMeta({
-  title: '首页',
-  description: '发现你感兴趣的内容',
-})
-
-type FeedTab =
-  | 'recommend'
-  | 'following'
-
+type FeedTab = 'recommend' | 'following'
+type HomeFeed = RecommendationFeedResponse & { mode: 'recommendation' | 'latest', page: number }
 const postStore = usePostStore()
-
-const activeTab =
-  ref<FeedTab>('recommend')
-
-const tabs = [
-  {
-    label: '推荐',
-    value: 'recommend',
-  },
-  {
-    label: '关注',
-    value: 'following',
-  },
-] satisfies Array<{
-  label: string
-  value: FeedTab
-}>
-
-const page =
-  ref(1)
-
-const pageSize =
-  20
-
-const {
-  data,
-  status,
-  error,
-  refresh,
-} = await useFetch<FeedResponse>(
-  '/api/posts/feed',
-  {
-    query: {
-      page,
-      pageSize,
-    },
-    key: 'home-feed',
-  },
-)
-
-/*
- * API 查询结果进入统一 Post Store。
- *
- * 首页只负责：
- * - Feed 顺序
- * - 分页
- * - loading / error
- *
- * Post 实体状态统一由 Pinia 管理。
- */
-watch(
-  () => data.value?.items,
-  items => {
-    if (!items) {
-      return
+const activeTab = ref<FeedTab>('recommend')
+const tabs = [{ label: '推荐', value: 'recommend' }, { label: '关注', value: 'following' }] satisfies Array<{ label: string, value: FeedTab }>
+const pageSize = 20
+const requestFetch = useRequestFetch()
+function unavailable(error: unknown): boolean {
+  const status = (error as { statusCode?: number, status?: number }).statusCode
+    ?? (error as { status?: number }).status
+  return status === undefined || [502, 503, 504].includes(status)
+}
+async function latest(page = 1): Promise<HomeFeed> {
+  const result = await requestFetch<FeedResponse>('/api/posts/feed', { query: { page, pageSize } })
+  return { items: result.items, hasMore: page * pageSize < result.totalCount,
+    nextCursor: null, requestId: '', strategy: 'latest', mode: 'latest', page }
+}
+async function initial(): Promise<HomeFeed> {
+  try {
+    const result = await requestFetch<RecommendationFeedResponse>('/api/posts/recommended', { query: { pageSize } })
+    return { ...result, mode: 'recommendation', page: 0 }
+  }
+  catch (error) {
+    if (unavailable(error)) return latest()
+    throw error
+  }
+}
+const { data, status, error, refresh } = await useAsyncData('home-recommended-feed', initial)
+const accumulated = ref<PostResponse[]>([])
+const nextCursor = ref<string | null>(null)
+const requestId = ref('')
+const mode = ref<HomeFeed['mode']>('recommendation')
+const latestPage = ref(0)
+const hasMore = ref(false)
+const loadingMore = ref(false)
+const loadMoreError = ref(false)
+const { record } = useRecommendationTracking()
+function replace(value: HomeFeed): void {
+  postStore.upsertPosts(value.items)
+  accumulated.value = value.items
+  nextCursor.value = value.nextCursor
+  requestId.value = value.requestId
+  mode.value = value.mode
+  latestPage.value = value.page
+  hasMore.value = value.hasMore
+}
+watch(data, value => { if (value) replace(value) }, { immediate: true })
+const posts = computed(() => accumulated.value.filter(post => !postStore.isDeleted(post.id))
+  .map(post => postStore.getPost(post.id) ?? post))
+async function loadMore(): Promise<void> {
+  if (!hasMore.value || loadingMore.value) return
+  loadingMore.value = true
+  loadMoreError.value = false
+  try {
+    const result = mode.value === 'latest' ? await latest(latestPage.value + 1)
+      : await requestFetch<RecommendationFeedResponse>('/api/posts/recommended', {
+        query: { pageSize, cursor: nextCursor.value },
+      })
+    postStore.upsertPosts(result.items)
+    const known = new Set(accumulated.value.map(post => post.id))
+    accumulated.value.push(...result.items.filter(post => !known.has(post.id)))
+    nextCursor.value = result.nextCursor
+    hasMore.value = result.hasMore
+    if ('page' in result && typeof result.page === 'number') latestPage.value = result.page
+  }
+  catch (error) {
+    if ((error as { statusCode?: number }).statusCode === 410) await refresh()
+    else if (mode.value === 'recommendation' && unavailable(error)) {
+      try { replace(await latest()) }
+      catch { loadMoreError.value = true }
     }
-
-    postStore.upsertPosts(
-      items,
-    )
-  },
-  {
-    immediate: true,
-  },
-)
-
-/*
- * FeedResponse.items 决定当前 Feed 顺序。
- *
- * 实际实体优先使用 Store 中的最新版本，
- * 保证首页、搜索、喜欢页、详情弹窗之间状态一致。
- */
-const posts =
-  computed<PostResponse[]>(() => {
-    const items =
-      data.value?.items
-      ?? []
-
-    return items.filter(post => !postStore.isDeleted(post.id)).map(
-      post =>
-        postStore.getPost(
-          post.id,
-        )
-        ?? post,
-    )
-  })
-
-const totalCount =
-  computed(() =>
-    Math.max(0, (data.value?.totalCount ?? 0)
-      - (data.value?.items.filter(post => postStore.isDeleted(post.id)).length ?? 0)),
-  )
-
-const pending =
-  computed(() =>
-    status.value === 'pending',
-  )
-
-const hasError =
-  computed(() =>
-    Boolean(
-      error.value,
-    ),
-  )
-
-const placeholderPosts =
-  Array.from(
-    {
-      length: 8,
-    },
-    (_, index) => ({
-      id:
-        index + 1,
-    }),
-  )
-
-function selectTab(
-  tab: FeedTab,
-): void {
-  activeTab.value =
-    tab
+    else loadMoreError.value = true
+  }
+  finally { loadingMore.value = false }
 }
-
-async function retry():
-  Promise<void> {
-  await refresh()
-}
+const pending = computed(() => status.value === 'pending')
+const hasError = computed(() => Boolean(error.value))
+const placeholderPosts = Array.from({ length: 8 }, (_, index) => ({ id: index + 1 }))
+function selectTab(tab: FeedTab): void { activeTab.value = tab }
+async function retry(): Promise<void> { await refresh() }
 </script>
 
 <template>
@@ -326,14 +265,20 @@ async function retry():
           lg:grid-cols-3
           xl:grid-cols-4
         ">
-          <PostFeedCard v-for="post in posts" :key="post.id" :post="post" />
+          <PostFeedCard v-for="post in posts" :key="`${requestId}:${post.id}`" :post="post"
+            :recommendation-request-id="requestId" @feedback="record" />
         </div>
 
+        <div v-if="hasMore" class="flex justify-center">
+          <UButton variant="soft" color="neutral" :loading="loadingMore" @click="loadMore">
+            {{ loadMoreError ? '加载失败，点击重试' : '加载更多' }}
+          </UButton>
+        </div>
         <p class="
           text-center text-xs
           text-muted
         ">
-          共 {{ totalCount }} 篇内容
+          已加载 {{ posts.length }} 篇内容
         </p>
       </template>
     </template>

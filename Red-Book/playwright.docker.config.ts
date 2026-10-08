@@ -3,7 +3,8 @@ import { defineConfig, devices } from '@playwright/test'
 export default defineConfig({
     testDir: './tests/e2e',
     testMatch: /docker-deployment\.spec\.ts/,
-    timeout: 120_000,
+    // Aspire HTTPS targets include Nuxt development compilation on first navigation.
+    timeout: process.env.REDNOTE_FRONTEND_URL?.startsWith('https://') ? 300_000 : 120_000,
     workers: 1,
     reporter: 'list',
     use: {

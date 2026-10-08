@@ -1,9 +1,30 @@
 <script setup lang="ts">
+import { useDocumentVisibility, useIntersectionObserver, useTimeoutFn } from '@vueuse/core'
 import type { PostResponse } from '~~/shared/types/posts'
 
 const props = defineProps<{
     post: PostResponse
+    recommendationRequestId?: string
 }>()
+
+const emit = defineEmits<{
+    feedback: [requestId: string, postId: string, type: 'read' | 'click']
+}>()
+const article = ref<HTMLElement | null>(null)
+const visible = ref(false)
+const documentVisibility = useDocumentVisibility()
+let readRecorded = false
+const { start: startRead, stop: stopRead } = useTimeoutFn(() => {
+    if (!readRecorded && visible.value && documentVisibility.value === 'visible' && props.recommendationRequestId) {
+        readRecorded = true
+        emit('feedback', props.recommendationRequestId, props.post.id, 'read')
+    }
+}, 1000, { immediate: false })
+useIntersectionObserver(article, ([entry]) => { visible.value = Boolean(entry?.isIntersecting && entry.intersectionRatio >= 0.5) }, { threshold: 0.5 })
+watch([visible, documentVisibility], ([isVisible, pageVisibility]) => {
+    if (props.recommendationRequestId && isVisible && pageVisibility === 'visible' && !readRecorded) startRead()
+    else stopRead()
+})
 
 const postStore = usePostStore()
 if (!postStore.getPost(props.post.id)) {
@@ -35,6 +56,7 @@ const likePending = computed(() => postStore.isLikePending(currentPost.value.id)
 const detailOpen = ref(false)
 
 function openDetail(): void {
+    if (props.recommendationRequestId) emit('feedback', props.recommendationRequestId, props.post.id, 'click')
     detailOpen.value = true
 }
 
@@ -68,7 +90,7 @@ async function toggleLike(): Promise<void> {
 </script>
 
 <template>
-    <article class="group min-w-0 cursor-pointer overflow-hidden rounded-xl" tabindex="0" role="button"
+    <article ref="article" class="group min-w-0 cursor-pointer overflow-hidden rounded-xl" tabindex="0" role="button"
         :aria-label="`查看帖子：${currentPost.title}`" @click="openDetail" @keydown.enter="openDetail"
         @keydown.space.prevent="openDetail">
         <!-- 封面 -->

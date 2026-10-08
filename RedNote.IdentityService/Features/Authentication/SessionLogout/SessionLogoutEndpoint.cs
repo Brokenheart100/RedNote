@@ -1,5 +1,4 @@
 using Asp.Versioning;
-using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using RedNote.IdentityService.Domain.Users;
@@ -11,12 +10,10 @@ namespace RedNote.IdentityService.Features.Authentication.SessionLogout;
 public static class SessionLogoutEndpoint
 {
     [WolverinePost("/auth/session/logout")]
-    public static async Task<IResult> Post(HttpContext context,
-        [FromServices] IAntiforgery antiforgery,
+    [ValidateAntiforgery]
+    public static async Task<IResult> Post(
         [FromServices] SignInManager<ApplicationUser> signInManager)
     {
-        try { await antiforgery.ValidateRequestAsync(context); }
-        catch (AntiforgeryValidationException) { return Results.BadRequest(); }
         await signInManager.SignOutAsync();
         return Results.Ok();
     }

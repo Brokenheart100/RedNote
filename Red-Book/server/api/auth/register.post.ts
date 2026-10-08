@@ -1,3 +1,5 @@
+import { createTracedFetch } from '~~/server/utils/traced-fetch'
+import { eventLogger } from '~~/server/utils/server-logger'
 import type { RegisterResponse } from '~~/shared/types/auth'
 
 import {
@@ -28,11 +30,12 @@ export default defineEventHandler(async event => {
 
     try {
         const csrf = await getIdentityCsrfContext(
+            event,
             config.gatewayBaseUrl,
             requestId,
         )
 
-        return await $fetch<RegisterResponse>(
+        return await createTracedFetch(event)<RegisterResponse>(
             '/api/v1/auth/register',
             {
                 baseURL: config.gatewayBaseUrl,
@@ -59,13 +62,13 @@ export default defineEventHandler(async event => {
         const statusCode = getFetchErrorStatusCode(error, 502)
 
         if (statusCode >= 500) {
-            console.error('❌ [BFF] 注册请求失败', {
+            eventLogger(event).error('❌ [BFF] 注册请求失败', {
                 requestId,
                 statusCode,
             })
         }
         else {
-            console.warn('⚠️ [BFF] 注册请求失败', {
+            eventLogger(event).warn('⚠️ [BFF] 注册请求失败', {
                 requestId,
                 statusCode,
             })

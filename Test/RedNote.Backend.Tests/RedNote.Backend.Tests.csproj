@@ -11,10 +11,23 @@
     <None Include="../fixtures/upload.png" Link="fixtures/upload.png" CopyToOutputDirectory="PreserveNewest" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="Microsoft.AspNetCore.TestHost" />
+    <PackageReference Include="Alba" />
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio" PrivateAssets="all" />
+    <ProjectReference Include="../../RedNote.RecommendationService/RedNote.RecommendationService.csproj" />
     <ProjectReference Include="../../RedNote.ContentService/RedNote.ContentService.csproj" />
+    <ProjectReference Include="../../RedNote.RecommendationService/RedNote.RecommendationService.csproj" />
     <ProjectReference Include="../../RedNote.SearchService/RedNote.SearchService.csproj" />
+    <ProjectReference Include="../../RedNote.RecommendationService/RedNote.RecommendationService.csproj" />
     <ProjectReference Include="../../RedNote.MediaService/RedNote.MediaService.csproj" />
+    <ProjectReference Include="../../RedNote.RecommendationService/RedNote.RecommendationService.csproj" />
+    <ProjectReference Include="../../RedNote.Gateway/RedNote.Gateway.csproj" />
+    <ProjectReference Include="../../RedNote.RecommendationService/RedNote.RecommendationService.csproj" />
+    <ProjectReference Include="../../RedNote.IdentityService/RedNote.IdentityService.csproj" />
+    <ProjectReference Include="../../RedNote.RecommendationService/RedNote.RecommendationService.csproj" />
+    <ProjectReference Include="../../RedNote.UserService/RedNote.UserService.csproj" />
+    <ProjectReference Include="../../RedNote.RecommendationService/RedNote.RecommendationService.csproj" />
+    <ProjectReference Include="../../RedNote.AdminService/RedNote.AdminService.csproj" />
   </ItemGroup>
 </Project>

@@ -5,7 +5,8 @@ using Microsoft.EntityFrameworkCore;
 using RedNote.Contracts.Users;
 using RedNote.UserService.Domain.Users;
 using RedNote.UserService.Infrastructure.Persistence;
-using Wolverine.EntityFrameworkCore;
+using Wolverine;
+using Wolverine.Attributes;
 using Wolverine.Http;
 
 namespace RedNote.UserService.Features.Users.GetMe;
@@ -15,9 +16,11 @@ namespace RedNote.UserService.Features.Users.GetMe;
 public static class GetMeEndpoint
 {
     [WolverineGet("/users/me")]
+    [Transactional]
     public static async Task<GetMeResponse> Get(
         ClaimsPrincipal user,
-        IDbContextOutbox<UserServiceDbContext> outbox,
+        UserServiceDbContext dbContext,
+        IMessageBus bus,
         ILoggerFactory loggerFactory,
         CancellationToken cancellationToken)
     {
@@ -39,8 +42,6 @@ public static class GetMeEndpoint
 
         var tokenDisplayName = Normalize(
             user.FindFirstValue("name"));
-
-        var dbContext = outbox.DbContext;
 
         var profile =
             await dbContext.UserProfiles
@@ -80,15 +81,12 @@ public static class GetMeEndpoint
 
         if (profileChanged)
         {
-            await outbox.PublishAsync(
+            await bus.PublishAsync(
                 new UserProfileChanged(
                     profile.UserId,
                     profile.Nickname,
                     profile.AvatarUrl,
                     profile.UpdatedAtUtc));
-
-            await outbox.SaveChangesAndFlushMessagesAsync(
-                cancellationToken);
 
             logger.LogDebug(
                 "User profile initialized or completed. UserId={UserId}",

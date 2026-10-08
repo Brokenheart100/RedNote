@@ -8,6 +8,7 @@ public sealed class ContentServiceDbContext(
     DbContextOptions<ContentServiceDbContext> options)
     : DbContext(options)
 {
+    public DbSet<RedNote.Contracts.Admin.AdminAuditEntry> AdminAudit => Set<RedNote.Contracts.Admin.AdminAuditEntry>();
     public DbSet<Post> Posts => Set<Post>();
     public DbSet<PostMedia> PostMedia => Set<PostMedia>();
     public DbSet<PostLike> PostLikes => Set<PostLike>();
@@ -17,9 +18,27 @@ public sealed class ContentServiceDbContext(
 
     public DbSet<UserProfileProjection> UserProfileProjections => Set<UserProfileProjection>();
 
+    // Keep this lock until the transaction containing the search revision and outbox commits.
+    public async Task<Post?> LockPostForWriteAsync(Guid postId, CancellationToken ct)
+    {
+        if (Database.CurrentTransaction is null)
+            throw new InvalidOperationException("A post write lock requires an active transaction.");
+
+        var posts = await Posts
+            .FromSqlInterpolated($"SELECT * FROM \"Posts\" WHERE \"Id\" = {postId} FOR UPDATE")
+            .ToListAsync(ct);
+        return posts.SingleOrDefault();
+    }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+        modelBuilder.Entity<RedNote.Contracts.Admin.AdminAuditEntry>(entity =>
+        {
+            entity.HasIndex(entry => entry.CreatedAtUtc);
+            entity.HasIndex(entry => new { entry.ActorUserId, entry.CreatedAtUtc });
+            entity.HasIndex(entry => new { entry.TargetId, entry.CreatedAtUtc });
+        });
 
         modelBuilder.Entity<PostTag>(entity =>
         {

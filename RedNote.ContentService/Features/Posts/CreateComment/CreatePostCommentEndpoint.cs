@@ -1,12 +1,13 @@
 using System.Security.Claims;
 using Asp.Versioning;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using RedNote.ContentService.Domain.Posts;
 using RedNote.ContentService.Features.Posts.Common;
 using RedNote.ContentService.Infrastructure.Persistence;
 using RedNote.Contracts.Content;
-using Wolverine.EntityFrameworkCore;
+using Wolverine.Attributes;
 using Wolverine.Http;
 
 namespace RedNote.ContentService.Features.Posts.CreatePostComment;
@@ -15,192 +16,76 @@ namespace RedNote.ContentService.Features.Posts.CreatePostComment;
 [Authorize]
 public static class CreatePostCommentEndpoint
 {
-    private const int MaxContentLength = 1000;
-
-    [WolverinePost("/posts/{postId:guid}/comments")]
-    public static async Task<IResult> Post(
+    public static async Task<(IResult, ValidatedCommentInput?)> Before(
         Guid postId,
         CreatePostCommentRequest request,
         ClaimsPrincipal principal,
-        IDbContextOutbox<ContentServiceDbContext> outbox,
+        ContentServiceDbContext dbContext,
         CancellationToken cancellationToken)
     {
-        var subject = principal.FindFirst("sub")?.Value;
+        if (!Guid.TryParse(principal.FindFirst("sub")?.Value, out var authorUserId))
+            return (Results.Unauthorized(), null);
 
-        if (!Guid.TryParse(
-                subject,
-                out var authorUserId))
-        {
-            return Results.Unauthorized();
-        }
-
-        if (string.IsNullOrWhiteSpace(request.Content))
-        {
-            return ValidationProblem(
-                "content",
-                "Comment content is required.");
-        }
-
-        var content = request.Content.Trim();
-
-        if (content.Length > MaxContentLength)
-        {
-            return ValidationProblem(
-                "content",
-                $"Comment content cannot exceed {MaxContentLength} characters.");
-        }
-
-        var dbContext = outbox.DbContext;
-
-        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
-        var post = await PostWriteLock.AcquireAsync(dbContext, postId, cancellationToken);
-
-        if (post is null || post.Status != PostStatus.Published)
-        {
-            return Results.NotFound();
-        }
+        // The eager transaction must cover the lock and all subsequent writes.
+        var post = await dbContext.LockPostForWriteAsync(postId, cancellationToken);
+        if (post is null || post.Status != PostStatus.Published || post.IsHidden)
+            return (Results.NotFound(), null);
 
         if (request.ParentCommentId.HasValue)
         {
-            if (request.ParentCommentId.Value == Guid.Empty)
-            {
-                return ValidationProblem(
-                    "parentCommentId",
-                    "Parent comment id cannot be empty.");
-            }
-
-            var parentComment = await dbContext.PostComments
-                .AsNoTracking()
-                .Where(
-                    comment =>
-                        comment.Id == request.ParentCommentId.Value
-                        && comment.PostId == postId
-                        && comment.Status == PostCommentStatus.Published)
-                .Select(
-                    comment =>
-                        new
-                        {
-                            comment.Id,
-                            comment.ParentCommentId
-                        })
-                .SingleOrDefaultAsync(cancellationToken);
-
-            if (parentComment is null)
-            {
-                return ValidationProblem(
-                    "parentCommentId",
-                    "Parent comment does not exist.");
-            }
-
-            if (parentComment.ParentCommentId.HasValue)
-            {
-                return ValidationProblem(
-                    "parentCommentId",
-                    "Only one level of replies is supported.");
-            }
+            var parent = await dbContext.PostComments.AsNoTracking()
+                .Where(comment => comment.Id == request.ParentCommentId.Value && comment.PostId == postId
+                    && comment.Status == PostCommentStatus.Published && !comment.IsHidden && !comment.IsParentHidden)
+                .Select(comment => new { comment.ParentCommentId }).SingleOrDefaultAsync(cancellationToken);
+            if (parent is null)
+                return (InvalidParent("Parent comment does not exist."), null);
+            if (parent.ParentCommentId.HasValue)
+                return (InvalidParent("Only one level of replies is supported."), null);
         }
 
-        var comment = new PostComment(
-            Guid.CreateVersion7(),
-            postId,
-            authorUserId,
-            content,
-            request.ParentCommentId);
-
-        dbContext.PostComments.Add(comment);
-
-        var likeCount = await dbContext.PostLikes
-            .AsNoTracking()
-            .CountAsync(
-                like => like.PostId == postId,
-                cancellationToken);
-
-        /*
-         * 此时新 Comment 还只是 Added 状态，
-         * 当前数据库 COUNT 不包含它，因此提交后的数量 = existing + 1。
-         */
-        var existingCommentCount = await dbContext.PostComments
-            .AsNoTracking()
-            .CountAsync(
-                existingComment =>
-                    existingComment.PostId == postId
-                    && existingComment.Status == PostCommentStatus.Published,
-                cancellationToken);
-
-        var commentCount = existingCommentCount + 1;
-
-        post.RecordMetricsChange();
-        await outbox.PublishAsync(
-            new PostMetricsChanged(
-                postId,
-                likeCount,
-                commentCount,
-                post.Revision));
-
-        /*
-         * Comment + Wolverine Outbox message 一次提交。
-         */
-        await outbox.SaveChangesAndFlushMessagesAsync(
-            cancellationToken);
-
-        /*
-         * 创建后的 HTTP Response 也从本地 Projection 获取作者展示数据。
-         *
-         * 不调用 UserService，不引入同步跨服务依赖。
-         */
-        var author = await dbContext.UserProfileProjections
-            .AsNoTracking()
-            .Where(profile => profile.UserId == authorUserId)
-            .Select(
-                profile =>
-                    new AuthorReadModel(
-                        profile.Nickname,
-                        profile.AvatarUrl))
-            .SingleOrDefaultAsync(cancellationToken);
-
-        return Results.Created(
-            $"/api/v1/posts/{postId}/comments/{comment.Id}",
-            new PostCommentResponse(
-                comment.Id,
-                comment.PostId,
-                comment.AuthorUserId,
-                new CommentAuthorResponse(
-                    comment.AuthorUserId,
-                    author?.Nickname,
-                    author?.AvatarUrl),
-                comment.Content,
-                comment.ParentCommentId,
-                comment.CreatedAtUtc,
-                comment.UpdatedAtUtc));
+        return (WolverineContinue.Result(), new ValidatedCommentInput(authorUserId, post));
     }
 
-    private static IResult ValidationProblem(
-        string key,
-        string message)
+    [WolverinePost("/posts/{postId:guid}/comments")]
+    [ProducesResponseType(typeof(PostCommentResponse), StatusCodes.Status201Created)]
+    [Transactional]
+    [DeduplicatedWithResponse(DeduplicationScope.User | DeduplicationScope.Endpoint, Required = false)]
+    public static async Task<(PostCommentResponse, PostMetricsChanged)> Post(
+        Guid postId,
+        CreatePostCommentRequest request,
+        ValidatedCommentInput input,
+        HttpContext httpContext,
+        ContentServiceDbContext dbContext,
+        CancellationToken cancellationToken)
     {
-        return Results.ValidationProblem(
-            new Dictionary<string, string[]>
-            {
-                [key] = [message]
-            });
+        var authorUserId = input.UserId;
+        var post = input.Post;
+        var comment = new PostComment(Guid.CreateVersion7(), postId, authorUserId,
+            request.Content.Trim(), request.ParentCommentId);
+        dbContext.PostComments.Add(comment);
+        var likeCount = await dbContext.PostLikes.AsNoTracking().CountAsync(like => like.PostId == postId, cancellationToken);
+        // The pending Added comment is not yet included in the database count.
+        var commentCount = 1 + await dbContext.PostComments.AsNoTracking()
+            .CountAsync(existing => existing.PostId == postId && existing.Status == PostCommentStatus.Published
+                && !existing.IsHidden && !existing.IsParentHidden, cancellationToken);
+        post.RecordMetricsChange();
+
+        var author = await dbContext.UserProfileProjections.AsNoTracking()
+            .SingleOrDefaultAsync(profile => profile.UserId == authorUserId, cancellationToken);
+        var response = new PostCommentResponse(comment.Id, postId, authorUserId,
+            new CommentAuthorResponse(authorUserId, author?.Nickname, author?.AvatarUrl),
+            comment.Content, comment.ParentCommentId, comment.CreatedAtUtc, comment.UpdatedAtUtc);
+        httpContext.Response.StatusCode = StatusCodes.Status201Created;
+        httpContext.Response.Headers.Location = $"/api/v1/posts/{postId}/comments/{comment.Id}";
+        return (response,
+            new PostMetricsChanged(postId, likeCount, commentCount, post.Revision));
     }
 
-    private sealed record AuthorReadModel(
-        string? Nickname,
-        string? AvatarUrl);
-
-    private sealed record CommentAuthorResponse(
-        Guid UserId,
-        string? Nickname,
-        string? AvatarUrl);
-
-    private sealed record PostCommentResponse(
-        Guid Id,
-        Guid PostId,
-        Guid AuthorUserId,
-        CommentAuthorResponse Author,
-        string Content,
-        Guid? ParentCommentId,
-        DateTimeOffset CreatedAtUtc,
-        DateTimeOffset UpdatedAtUtc);
+    private static IResult InvalidParent(string message) => Results.ValidationProblem(
+        new Dictionary<string, string[]> { ["parentCommentId"] = [message] });
 }
+
+public sealed record CommentAuthorResponse(Guid UserId, string? Nickname, string? AvatarUrl);
+public sealed record ValidatedCommentInput(Guid UserId, Domain.Posts.Post Post);
+public sealed record PostCommentResponse(Guid Id, Guid PostId, Guid AuthorUserId, CommentAuthorResponse Author,
+    string Content, Guid? ParentCommentId, DateTimeOffset CreatedAtUtc, DateTimeOffset UpdatedAtUtc);

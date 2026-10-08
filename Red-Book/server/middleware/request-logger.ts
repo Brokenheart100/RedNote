@@ -1,5 +1,7 @@
+import { eventLogger } from '~~/server/utils/server-logger'
 export default defineEventHandler(
     event => {
+        if (event.context.telemetrySpan) return
         if (!import.meta.dev) {
             return
         }
@@ -44,7 +46,7 @@ export default defineEventHandler(
                 'user-agent',
             )
 
-        console.log(
+        eventLogger(event).log(
             `🌐 [HTTP] ${method} ${path}`,
             {
                 requestId,
@@ -77,7 +79,7 @@ export default defineEventHandler(
                     + `${duration.toFixed(1)}ms`
 
                 if (statusCode >= 500) {
-                    console.error(
+                    eventLogger(event).error(
                         `❌ [HTTP] ${summary}`,
                         {
                             requestId,
@@ -88,7 +90,7 @@ export default defineEventHandler(
                 }
 
                 if (statusCode >= 400) {
-                    console.warn(
+                    eventLogger(event).warn(
                         `⚠️ [HTTP] ${summary}`,
                         {
                             requestId,
@@ -98,7 +100,7 @@ export default defineEventHandler(
                     return
                 }
 
-                console.log(
+                eventLogger(event).log(
                     `✅ [HTTP] ${summary}`,
                     {
                         requestId,

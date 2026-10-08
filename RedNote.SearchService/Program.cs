@@ -1,4 +1,10 @@
+using JasperFx;
+using Wolverine.FluentValidation;
+using Wolverine.Http.FluentValidation;
 using OpenSearch.Client;
+using Microsoft.EntityFrameworkCore;
+using RedNote.Authentication;
+using RedNote.SearchService.Infrastructure.Persistence;
 using OpenSearch.Net;
 using RedNote.SearchService.Infrastructure.OpenSearch;
 using ServiceDefaults;
@@ -21,32 +27,32 @@ builder.Services.AddSingleton<IOpenSearchClient>(
     _ =>
     {
         var node =
-            new SingleNodeConnectionPool(
-                new Uri(openSearchUrl));
+            new SingleNodeConnectionPool(new Uri(openSearchUrl));
 
         var settings =
             new ConnectionSettings(node)
-                .DefaultIndex(
-                    OpenSearchIndexInitializer.PostIndexName);
+                .DefaultIndex(OpenSearchIndexInitializer.PostIndexName);
 
         return new OpenSearchClient(settings);
     });
 
 builder.Services.AddSingleton<OpenSearchIndexInitializer>();
 
-// PostgreSQL remains the durable inbox store; search documents live in OpenSearch.
+// EF owns search history; Wolverine owns its inbox schema in the same database.
 var searchDatabaseConnectionString =
     builder.Configuration.GetConnectionString("searchdb")
-    ?? throw new InvalidOperationException(
-        "Connection string 'searchdb' is not configured.");
+    ?? throw new InvalidOperationException("Connection string 'searchdb' is not configured.");
+
+builder.Services.AddDbContext<SearchServiceDbContext>(options => options.UseNpgsql(searchDatabaseConnectionString));
+builder.Services.AddRedNoteJwtAuthentication(builder.Configuration);
 
 builder.Host.UseWolverine(options =>
 {
     options.UseRuntimeCompilation();
+    options.UseFluentValidation();
+    options.CodeGeneration.AlwaysUseServiceLocationFor<SearchServiceDbContext>();
 
-    options.PersistMessagesWithPostgresql(
-        searchDatabaseConnectionString);
-
+    options.PersistMessagesWithPostgresql(searchDatabaseConnectionString);
 
     options.UseRabbitMqUsingNamedConnection("rabbitmq")
         .AutoProvision()
@@ -60,11 +66,17 @@ builder.Host.UseWolverine(options =>
 builder.Services.AddWolverineHttp();
 
 var app = builder.Build();
+app.UseDefaultExceptionHandler();
 
-await InitializeOpenSearchAsync(app);
+if (args.FirstOrDefault() is not ("check-env" or "describe" or "codegen"))
+    await InitializeOpenSearchAsync(app);
+
+app.UseAuthentication();
+app.UseAuthorization();
 
 app.MapWolverineEndpoints(options =>
 {
+    options.UseFluentValidationProblemDetailMiddleware();
     options.UseApiVersioning(versioning =>
     {
         versioning.UrlSegmentPrefix = "api/v{version}";
@@ -74,7 +86,7 @@ app.MapWolverineEndpoints(options =>
 
 app.MapDefaultEndpoints();
 
-await app.RunAsync();
+Environment.ExitCode = await app.RunJasperFxCommands(args);
 
 static async Task InitializeOpenSearchAsync(
     WebApplication app)

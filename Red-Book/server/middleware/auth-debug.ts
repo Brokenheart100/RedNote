@@ -1,3 +1,4 @@
+import { eventLogger } from '~~/server/utils/server-logger'
 import { getAuthTokenSet } from '~~/server/utils/auth-token-store'
 
 interface JwtPayload {
@@ -89,7 +90,7 @@ export default defineEventHandler(async event => {
     const session = await getUserSession(event)
 
     if (!session.id || !session.user) {
-        console.log('🔍 [AUTH DEBUG] 请求没有 Nuxt Session', {
+        eventLogger(event).log('🔍 [AUTH DEBUG] 请求没有 Nuxt Session', {
             requestId,
             method: event.method,
             path,
@@ -102,7 +103,7 @@ export default defineEventHandler(async event => {
     const tokens = await getAuthTokenSet(session.id)
 
     if (!tokens?.accessToken) {
-        console.log('🔍 [AUTH DEBUG] Session 存在，但 Redis Token Set 不存在', {
+        eventLogger(event).log('🔍 [AUTH DEBUG] Session 存在，但 Redis Token Set 不存在', {
             requestId,
             method: event.method,
             path,
@@ -126,7 +127,7 @@ export default defineEventHandler(async event => {
             ? new Date(payload.exp * 1000).toISOString()
             : null
 
-    console.log('🔍 [AUTH DEBUG] 当前认证上下文', {
+    eventLogger(event).log('🔍 [AUTH DEBUG] 当前认证上下文', {
         requestId,
         method: event.method,
         path,
