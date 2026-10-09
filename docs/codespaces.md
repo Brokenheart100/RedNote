@@ -100,6 +100,7 @@ Codespaces 是开发环境，停止或闲置超时后页面不再运行；这套
 - 真实转发域名上的前台 session、管理端登录页、CSRF 和 OIDC discovery 返回正常结果；未登录管理会话返回 401，OIDC issuer 与转发域名一致。
 - 用户端 5 项既有回归在真实 GitHub HTTPS 入口分阶段全部通过。覆盖 OIDC/Redis、图片和头像、gRPC 带图发帖、搜索、删除、退出、幂等和点赞、输入校验、搜索历史并发与用户隔离，以及退出时的请求竞争。
 - 云端实测发现 GitHub 将本站 `Origin` 改写为 `https://localhost:8443`。AppHost 仅在 Codespaces 的 RunMode 下向管理端注入该精确别名；BFF 仅在开发模式接受它，其他来源继续拒绝，生产环境不启用别名，修改操作仍要求 CSRF Token。
+- 修复来源兼容问题后，管理端 1 项安全冒烟测试在真实 GitHub HTTPS 入口通过：错误 TOTP 拒绝、密码 + MFA、OIDC/PKCE、三种角色隔离、Redis 服务端令牌、撤权后拒绝旧令牌、CSRF 和退出登录。测试专用管理员及 MFA 文件在结束后清理；这次未重跑完整的内容审核、封禁和审计业务回归。
 - 浏览器首次访问可能出现 GitHub 的 **Codespaces Access Port** 提示。确认当前 Codespace 是自己创建的后选择 **Continue**；这是 GitHub 的开发端口提示，之后才进入 RedNote 的登录流程。
 - 云端浏览器测试保持 `ignoreHTTPSErrors=false`，应用 TLS 校验也保持开启。测试只为当前 Codespace 域名附加端口认证，不将端口改为 Public。
 - 本轮关联的 Backend 和两个 Frontend GitHub Actions 检查均通过。首次启动的 MinIO 源码编译完成后，清理了无用 Docker 构建缓存；保留运行镜像、数据库和图片卷。
