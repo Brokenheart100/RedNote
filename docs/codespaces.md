@@ -1,6 +1,6 @@
 # GitHub Codespaces 开发环境
 
-仓库使用 Aspire 官方开发容器 Feature、Docker-in-Docker、.NET 10、Node.js 24 和 PowerShell。Actions 负责自动检查；Codespaces 使用 `.devcontainer/devcontainer.json` 初始化并运行开发环境，无需先等待 Actions 部署。
+仓库使用 Aspire 官方开发容器 Feature、Docker-in-Docker、.NET 10、Node.js 24、PowerShell 和官方 SSH server Feature。SSH Feature 支持 `gh codespace ssh`、日志及文件传输，无需公开 SSH 端口。Actions 负责自动检查；Codespaces 使用 `.devcontainer/devcontainer.json` 初始化并运行开发环境，无需先等待 Actions 部署。
 
 ## 首次启动
 
