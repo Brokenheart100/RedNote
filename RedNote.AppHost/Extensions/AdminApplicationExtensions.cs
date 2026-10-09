@@ -1,4 +1,5 @@
 using Aspire.Hosting.ApplicationModel;
+using Microsoft.Extensions.Configuration;
 
 namespace RedNote.AppHost.Extensions;
 
@@ -30,6 +31,8 @@ internal static class AdminApplicationExtensions
         if (builder.ExecutionContext.IsRunMode)
             admin.WithCertificateTrustScope(CertificateTrustScope.None).WithEnvironment("NODE_EXTRA_CA_CERTS", builder.ExportDevelopmentCertificate())
                 .WithEnvironment("NODE_USE_SYSTEM_CA", "1");
+        if (builder.ExecutionContext.IsRunMode && builder.Configuration.GetValue<bool>("CODESPACES"))
+            admin.WithEnvironment("NUXT_CODESPACES_PROXY_ORIGIN", "https://localhost:8443");
         if (builder.ExecutionContext.IsPublishMode && builder.Configuration["LocalDocker"] == "true")
             admin.WithEnvironment("NUXT_SESSION_COOKIE_SECURE", "false");
         gateway.WithEnvironment("ReverseProxy__Clusters__admin-cluster__Destinations__admin__Address", admin.GetEndpoint("http"));

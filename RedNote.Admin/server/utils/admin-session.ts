@@ -11,8 +11,14 @@ export async function storeAdminTokens(id: string, tokens: AdminTokens) {
 export async function removeAdminTokens(id: string) { await getAuthRedis().del(key(id)) }
 
 export function checkAdminOrigin(event: H3Event) {
-  const allowed = new URL(useRuntimeConfig(event).public.adminBaseUrl).origin
-  if (getHeader(event, 'origin') !== allowed) throw createError({ statusCode: 403, statusMessage: 'Invalid request origin.' })
+  const config = useRuntimeConfig(event)
+  const allowed = new URL(config.public.adminBaseUrl).origin
+  const origin = getHeader(event, 'origin')
+  // Codespaces rewrites this origin to its local HTTPS forwarding target.
+  // Only the explicitly configured development alias is accepted; production remains strict.
+  const fromCodespaces = import.meta.dev && config.codespacesProxyOrigin
+    && origin === config.codespacesProxyOrigin
+  if (origin !== allowed && !fromCodespaces) throw createError({ statusCode: 403, statusMessage: 'Invalid request origin.' })
 }
 
 export async function adminSession(event: H3Event, write = false): Promise<{ tokens: AdminTokens; access: AdminAccess }> {

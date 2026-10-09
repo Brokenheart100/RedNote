@@ -15,6 +15,7 @@ export default defineNuxtConfig({
   },
   runtimeConfig: {
     gatewayBaseUrl: '',
+    codespacesProxyOrigin: '',
     session: { password: '', name: 'rednote-admin-session', maxAge: 8 * 60 * 60, cookie: { path: '/admin/', httpOnly: true, sameSite: 'lax', secure: true } },
     oauth: { oidc: { clientId: 'rednote-admin', clientSecret: '', openidConfig: '', redirectURL: '' } },
     public: { adminBaseUrl: '' },

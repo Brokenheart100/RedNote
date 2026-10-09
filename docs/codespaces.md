@@ -79,7 +79,7 @@ REDNOTE_GORSE_DASHBOARD_PASSWORD
 
 Codespaces 是开发环境，停止或闲置超时后页面不再运行；这套配置不提供生产部署、高可用或数据备份。
 
-本次验证（2026-10-09）：
+本地 Linux Dev Container 验证（2026-10-09）：
 
 - AppHost Release 编译通过，0 警告、0 错误；Shell 语法和 GitHub Actions 工作流检查通过。
 - 使用官方 Dev Containers CLI 构建 Linux 开发容器，依赖初始化、证书信任和开发密钥初始化通过；重复初始化保留原有密钥。
@@ -92,6 +92,18 @@ Codespaces 是开发环境，停止或闲置超时后页面不再运行；这套
 - 首次测试遇到 504 和内存不足；本地 Docker 虚拟机约 8 GB，低于配置请求的 16 GB。复测关闭未使用的资源，测试进程使用工作站 GC 和 Node 堆上限；这些限制仅用于本地验证，没有更改生产运行配置。搜索历史接口测试改用 Playwright 原生 HTTP 请求上下文，保留原有并发和隔离断言。
 - 本地测试用假的 Codespaces 主机名和 localhost 开发证书，因此仅测试工具忽略该主机名的证书匹配；应用的 TLS 校验保持开启。该测试不能验证 GitHub 提供的真实证书和端口认证。
 
-仓库配置以本地 Linux Dev Container 验证为基础；模拟 `CODESPACES` 环境变量能够检查内部编排和生成的公开 URL，但不能替代真实 GitHub 转发域名、GitHub 端口认证和浏览器回调的验证。真实 Codespace 创建后应检查首页、注册登录、管理端登录、带图发帖及图片访问。
+## 真实 GitHub Codespace 验证（2026-10-09）
+
+已在 `codex/codespaces-deployment` 分支、提交 `a7eaea8` 上实际创建并启动 Codespace，机型为 4 CPU / 16 GB / 32 GB。全部业务服务、前台、管理端及基础设施达到 Healthy，7 个 EF 迁移任务完成。初始化数据库任务为一次性任务，成功退出后不应要求其持续 Running。
+
+- 8443 和 17286 的 GitHub HTTPS 转发端口均保持 Private。匿名访问被 GitHub 登录保护；使用该 Codespace 的 `GITHUB_TOKEN` 请求头验证私有端口访问成功。测试凭据没有写入仓库。
+- 真实转发域名上的前台 session、管理端登录页、CSRF 和 OIDC discovery 返回正常结果；未登录管理会话返回 401，OIDC issuer 与转发域名一致。
+- 用户端 5 项既有回归在真实 GitHub HTTPS 入口分阶段全部通过。覆盖 OIDC/Redis、图片和头像、gRPC 带图发帖、搜索、删除、退出、幂等和点赞、输入校验、搜索历史并发与用户隔离，以及退出时的请求竞争。
+- 云端实测发现 GitHub 将本站 `Origin` 改写为 `https://localhost:8443`。AppHost 仅在 Codespaces 的 RunMode 下向管理端注入该精确别名；BFF 仅在开发模式接受它，其他来源继续拒绝，生产环境不启用别名，修改操作仍要求 CSRF Token。
+- 浏览器首次访问可能出现 GitHub 的 **Codespaces Access Port** 提示。确认当前 Codespace 是自己创建的后选择 **Continue**；这是 GitHub 的开发端口提示，之后才进入 RedNote 的登录流程。
+- 云端浏览器测试保持 `ignoreHTTPSErrors=false`，应用 TLS 校验也保持开启。测试只为当前 Codespace 域名附加端口认证，不将端口改为 Public。
+- 本轮关联的 Backend 和两个 Frontend GitHub Actions 检查均通过。首次启动的 MinIO 源码编译完成后，清理了无用 Docker 构建缓存；保留运行镜像、数据库和图片卷。
+
+该环境的数据库独立于本机，原有本地账号和帖子不会自动复制。普通账号在云端重新注册；管理员按本文引用的角色和 MFA 初始化流程创建。Codespace 使用 30 分钟闲置超时，停止后需恢复环境才能访问。这次验证属于云端开发环境验证，不代表生产容量、高可用或备份验证。
 
 官方依据：[Aspire Codespaces](https://aspire.dev/get-started/github-codespaces/)、[开发容器模板](https://github.com/microsoft/aspire-devcontainer/blob/main/.devcontainer/devcontainer.json)、[GitHub 环境变量](https://docs.github.com/en/codespaces/developing-in-a-codespace/default-environment-variables-for-your-codespace)、[端口转发](https://docs.github.com/en/codespaces/developing-in-a-codespace/forwarding-ports-in-your-codespace)。
