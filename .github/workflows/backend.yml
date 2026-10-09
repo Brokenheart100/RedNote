@@ -1,18 +1,73 @@
 name: Backend
+
 on:
+  workflow_dispatch:
   push:
-    paths: ['RedNote.*/**', 'RedNote.slnx', 'ServiceDefaults/**', 'Test/**', 'Directory.*.props', '.editorconfig', 'scripts/test-backend.ps1', '.github/workflows/backend.yml']
+    paths:
+      - 'RedNote.*/**'
+      - 'RedNote.slnx'
+      - 'ServiceDefaults/**'
+      - 'Test/**'
+      - 'Directory.*.props'
+      - 'Directory.*.targets'
+      - 'global.json'
+      - '[Nn]u[Gg]et.[Cc]onfig'
+      - '.config/dotnet-tools.json'
+      - '.editorconfig'
+      - '.gitattributes'
+      - 'infrastructure/gorse/**'
+      - 'scripts/test-backend.ps1'
+      - '.github/workflows/backend.yml'
   pull_request:
-    paths: ['RedNote.*/**', 'RedNote.slnx', 'ServiceDefaults/**', 'Test/**', 'Directory.*.props', '.editorconfig', 'scripts/test-backend.ps1', '.github/workflows/backend.yml']
+    paths:
+      - 'RedNote.*/**'
+      - 'RedNote.slnx'
+      - 'ServiceDefaults/**'
+      - 'Test/**'
+      - 'Directory.*.props'
+      - 'Directory.*.targets'
+      - 'global.json'
+      - '[Nn]u[Gg]et.[Cc]onfig'
+      - '.config/dotnet-tools.json'
+      - '.editorconfig'
+      - '.gitattributes'
+      - 'infrastructure/gorse/**'
+      - 'scripts/test-backend.ps1'
+      - '.github/workflows/backend.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   validate:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+      DOTNET_NOLOGO: '1'
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          dotnet-version: '10.0.x'
-      - run: dotnet build RedNote.slnx --configuration Release
-      - shell: pwsh
-        run: ./scripts/test-backend.ps1
+          persist-credentials: false
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+      - name: Restore
+        run: dotnet restore RedNote.slnx
+      - name: Build
+        run: dotnet build RedNote.slnx --configuration Release --no-restore
+      - name: Integration tests with isolated containers
+        shell: pwsh
+        run: ./scripts/test-backend.ps1 -NoBuild -Configuration Release -ResultsDirectory artifacts/backend-test-results
+      - name: Upload test results
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: backend-test-results
+          path: artifacts/backend-test-results/
+          if-no-files-found: ignore
+          retention-days: 7

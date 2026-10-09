@@ -1,5 +1,10 @@
 [CmdletBinding()]
-param([string]$Filter, [switch]$NoBuild)
+param(
+    [string]$Filter,
+    [switch]$NoBuild,
+    [ValidateSet('Debug', 'Release')][string]$Configuration = 'Debug',
+    [string]$ResultsDirectory
+)
 $ErrorActionPreference = 'Stop'
 $taskRoot = Split-Path $PSScriptRoot -Parent
 $taskDocker = 'docker'
@@ -72,7 +77,11 @@ try {
         } catch { Start-Sleep -Seconds 1 }
     }
     if (-not $taskGorseReady) { & $taskDocker logs $taskGorse; throw 'Gorse did not become ready.' }
-    $taskArguments = @('test', (Join-Path $taskRoot 'Test/RedNote.Backend.Tests'), '--logger', 'console;verbosity=normal')
+    $taskArguments = @('test', (Join-Path $taskRoot 'Test/RedNote.Backend.Tests'), '--configuration', $Configuration, '--logger', 'console;verbosity=normal')
+    if ($ResultsDirectory) {
+        $taskResults = if ([IO.Path]::IsPathRooted($ResultsDirectory)) { $ResultsDirectory } else { Join-Path $taskRoot $ResultsDirectory }
+        $taskArguments += @('--results-directory', $taskResults, '--logger', 'trx;LogFileName=backend.trx')
+    }
     if ($NoBuild) { $taskArguments += @("--no-build", "--no-restore") }
     if ($Filter) { $taskArguments += @('--filter', $Filter) }
     & dotnet @taskArguments
