@@ -84,7 +84,8 @@ export default defineNuxtConfig({
   },
 
   typescript: {
-    typeCheck: true,
+    // Builds and CI check types; avoid a second full-project watcher beside the IDE.
+    typeCheck: 'build',
   },
   content: {
     experimental: {

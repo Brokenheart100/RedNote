@@ -5,20 +5,22 @@ var builder = DistributedApplication.CreateBuilder(args);
 
 builder.ConfigureRedNoteCompose();
 
+var developmentPublicOrigin = builder.GetDevelopmentPublicOrigin();
+
 var gatewayPublicUrl = builder.AddParameter(
     "gateway-public-url",
-    builder.ExecutionContext.IsPublishMode ? "http://localhost:8080" : "https://localhost:8443",
+    builder.ExecutionContext.IsPublishMode ? "http://localhost:8080" : developmentPublicOrigin,
     publishValueAsDefault: true,
     secret: false);
 
 var frontendPublicUrl = builder.AddParameter(
     "frontend-public-url",
-    builder.ExecutionContext.IsPublishMode ? "http://localhost:3000" : "https://localhost:8443",
+    builder.ExecutionContext.IsPublishMode ? "http://localhost:3000" : developmentPublicOrigin,
     publishValueAsDefault: true,
     secret: false);
 
 var mediaPublicUrl = builder.AddParameter("media-public-url",
-    builder.ExecutionContext.IsPublishMode ? "http://localhost:9000" : "https://localhost:8443",
+    builder.ExecutionContext.IsPublishMode ? "http://localhost:9000" : developmentPublicOrigin,
     publishValueAsDefault: true, secret: false);
 
 var nuxtSessionPassword = builder.AddParameter(
@@ -66,12 +68,13 @@ var adminDatabase = postgres.AddDatabase("admindb");
 var recommendationDatabase = postgres.AddDatabase("recommendationdb");
 
 var minio = builder
-    .AddContainer("minio", "minio/minio")
+    .AddDockerfile("minio", "../infrastructure/minio")
     .WithArgs("server", "/data", "--console-address", ":9001")
     .WithEnvironment("MINIO_ROOT_USER", minioAccessKey)
     .WithEnvironment("MINIO_ROOT_PASSWORD", minioSecretKey)
     .WithHttpEndpoint(port: builder.ExecutionContext.IsPublishMode ? 9000 : null, targetPort: 9000, name: "s3")
     .WithHttpEndpoint(port: builder.ExecutionContext.IsPublishMode ? 9001 : null, targetPort: 9001, name: "console")
+    .WithHttpHealthCheck("/minio/health/ready", endpointName: "s3")
     .WithExternalHttpEndpoints()
     .WithVolume("minio-data", "/data");
 
@@ -177,6 +180,8 @@ else
 
 }
 
+builder.ConfigureCodespacesGateway(gateway, gatewayPublicUrl);
+
 // Back-end readiness endpoints are required by YARP's active health probes.
 foreach (var service in new[] { identityService, userService, contentService, mediaService, searchService, adminService, recommendationService })
     service.WithEnvironment("HealthChecks__Enabled", "true");
@@ -210,10 +215,9 @@ recommendationService.WithJwtConfiguration(jwtIssuer, jwtAudience, jwtMetadataAd
 
 #pragma warning disable ASPIREJAVASCRIPT001, ASPIREDOCKERFILEBUILDER001
 
-#pragma warning disable ASPIREBROWSERLOGS001
 var frontend = builder
     .AddViteApp("frontend", "../Red-Book")
-    .WithBrowserLogs(browser: "msedge", userDataMode: BrowserUserDataMode.Isolated)
+    .WithDevelopmentBrowserLogs()
     .WithNpm()
     .PublishAsNodeServer(entryPoint: ".output/server/index.mjs", outputPath: ".output")
     .WithSharedBffInfrastructure()
@@ -230,7 +234,6 @@ var frontend = builder
     .WithEnvironment("NUXT_SESSION_PASSWORD", nuxtSessionPassword)
     .WithExternalHttpEndpoints();
 
-#pragma warning restore ASPIREBROWSERLOGS001
 if (builder.ExecutionContext.IsRunMode)
 {
     frontend.WithCertificateTrustScope(CertificateTrustScope.None)

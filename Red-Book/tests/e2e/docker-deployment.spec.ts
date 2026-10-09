@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type APIRequestContext } from '@playwright/test'
 
 const frontendUrl = process.env.REDNOTE_FRONTEND_URL ?? 'http://localhost:3000'
 const gatewayUrl = process.env.REDNOTE_GATEWAY_URL ?? 'http://localhost:8080'
@@ -50,72 +50,76 @@ test('BFF forwards scoped idempotency keys and commits post interactions', async
     }
 })
 
-test('Docker: search history persists, deduplicates, limits concurrent writes and isolates users', async ({ browser, baseURL }) => {
-    const ownerContext = await browser.newContext({ baseURL })
-    const otherContext = await browser.newContext({ baseURL })
-    const owner = await ownerContext.newPage()
-    const other = await otherContext.newPage()
+test('Docker: search history persists, deduplicates, limits concurrent writes and isolates users', async ({ playwright, baseURL }) => {
+    const options = { baseURL, ignoreHTTPSErrors: test.info().project.use.ignoreHTTPSErrors }
+    const owner = await playwright.request.newContext(options)
+    const other = await playwright.request.newContext(options)
     const path = '/api/search/history'
     try {
-        expect((await owner.request.get(path)).status()).toBe(401)
-        expect((await owner.request.post(path, { data: { keyword: 'anonymous' } })).status()).toBe(401)
-        expect((await owner.request.delete(path)).status()).toBe(401)
-        expect((await owner.request.get(`${gatewayUrl}/api/v1/search/history`)).status()).toBe(401)
-        for (const page of [owner, other]) {
+        expect((await owner.get(path)).status()).toBe(401)
+        expect((await owner.post(path, { data: { keyword: 'anonymous' } })).status()).toBe(401)
+        expect((await owner.delete(path)).status()).toBe(401)
+        expect((await owner.get(`${gatewayUrl}/api/v1/search/history`)).status()).toBe(401)
+        for (const client of [owner, other]) {
             const email = `history_${crypto.randomUUID()}@example.com`
             const password = `History@${crypto.randomUUID()}Aa1`
-            const register = await page.request.post('/api/auth/register', {
+            const register = await client.post('/api/auth/register', {
                 data: { email, password, displayName: 'History test', familyName: 'Test' },
             })
             expect(register.status(), await register.text()).toBe(200)
-            const login = await page.request.post('/api/auth/login', { data: { email, password } })
+            const login = await client.post('/api/auth/login', { data: { email, password } })
             expect(login.status(), await login.text()).toBe(200)
-            await page.goto('/auth/rednote')
-            await expect(page).toHaveURL(`${frontendUrl}/`)
+            const authorization = await client.get('/auth/rednote')
+            expect(authorization.status()).toBe(200)
+            expect(authorization.url()).toBe(`${frontendUrl}/`)
+            const session = await (await client.get('/api/_auth/session')).json()
+            expect(session.user.authenticated).toBe(true)
         }
-        const read = async (page: typeof owner) => {
-            const response = await page.request.get(path)
+        const read = async (client: APIRequestContext) => {
+            const response = await client.get(path)
             expect(response.status(), await response.text()).toBe(200)
             return (await response.json()).items as { id: string, keyword: string, lastSearchedAtUtc: string }[]
         }
         for (const keyword of ['', '   ', 'x'.repeat(101)]) {
-            expect((await owner.request.post(path, { data: { keyword } })).status()).toBe(400)
+            expect((await owner.post(path, { data: { keyword } })).status()).toBe(400)
         }
         for (const keyword of [' Nuxt ', 'nuxt']) {
-            const response = await owner.request.post(path, { data: { keyword } })
+            const response = await owner.post(path, { data: { keyword } })
             expect(response.status(), await response.text()).toBe(204)
         }
         const first = await read(owner)
         expect(first).toHaveLength(1)
         expect(first[0]!.keyword).toBe('nuxt')
         expect(await read(other)).toEqual([])
-        expect((await other.request.delete(`${path}/${first[0]!.id}`)).status()).toBe(204)
+        expect((await other.delete(`${path}/${first[0]!.id}`)).status()).toBe(204)
         expect(await read(owner)).toEqual(first)
-        expect((await other.request.post(path, { data: { keyword: 'other-user-history' } })).status()).toBe(204)
+        expect((await other.post(path, { data: { keyword: 'other-user-history' } })).status()).toBe(204)
 
         await Promise.all(Array.from({ length: 25 }, async (_, index) => {
-            const response = await owner.request.post(path, { data: { keyword: `concurrent-${index}` } })
+            const response = await owner.post(path, { data: { keyword: `concurrent-${index}` } })
             expect(response.status(), await response.text()).toBe(204)
         }))
         const recent = await read(owner)
         expect(recent).toHaveLength(20)
         expect(new Set(recent.map(item => item.keyword)).size).toBe(20)
-        expect((await owner.request.post(path, { data: { keyword: 'latest-search' } })).status()).toBe(204)
+        expect((await owner.post(path, { data: { keyword: 'latest-search' } })).status()).toBe(204)
         const latest = await read(owner)
         expect(latest).toHaveLength(20)
         expect(latest[0]!.keyword).toBe('latest-search')
-        await owner.reload()
-        expect(await read(owner)).toEqual(latest)
-        expect((await owner.request.delete(`${path}/${latest[0]!.id}`)).status()).toBe(204)
+        // A fresh client retains only the session cookies, so history must come from the server.
+        const resumed = await playwright.request.newContext({ ...options, storageState: await owner.storageState() })
+        try { expect(await read(resumed)).toEqual(latest) }
+        finally { await resumed.dispose() }
+        expect((await owner.delete(`${path}/${latest[0]!.id}`)).status()).toBe(204)
         expect(await read(owner)).toHaveLength(19)
-        expect((await owner.request.delete(path)).status()).toBe(204)
+        expect((await owner.delete(path)).status()).toBe(204)
         expect(await read(owner)).toEqual([])
         expect((await read(other)).map(item => item.keyword)).toEqual(['other-user-history'])
-        expect((await other.request.delete(path)).status()).toBe(204)
+        expect((await other.delete(path)).status()).toBe(204)
     }
     finally {
-        await ownerContext.close()
-        await otherContext.close()
+        await owner.dispose()
+        await other.dispose()
     }
 })
 
@@ -151,6 +155,7 @@ test('shared validation blocks invalid login and registration before HTTP reques
 })
 
 test('Docker: OIDC, Redis session, upload, gRPC, search, deletion and logout', async ({ page }) => {
+    await page.clock.install()
     const email = `docker_${crypto.randomUUID()}@example.com`
     const password = `Docker@${crypto.randomUUID()}Aa1`
     const register = await page.request.post('/api/auth/register', {
@@ -252,11 +257,14 @@ test('Docker: OIDC, Redis session, upload, gRPC, search, deletion and logout', a
         const url = new URL(request.url())
         if (url.pathname === '/api/posts/search') queries.push(url.searchParams.get('q') ?? '')
     })
+    await page.clock.pauseAt(new Date(await page.evaluate(() => Date.now()) + 1000))
     await search.fill('discarded-query')
     await search.fill(title)
+    await page.clock.runFor(400)
     await expect(page).toHaveURL(new RegExp(`/search\\?q=${title}$`))
     await expect.poll(() => queries).toContain(title)
     expect(queries).not.toContain('discarded-query')
+    await page.clock.resume()
     const cover = page.getByRole('img', { name: title, exact: true })
     await expect(cover).toBeVisible()
     const coverUrl = new URL((await cover.getAttribute('src'))!)
@@ -271,15 +279,22 @@ test('Docker: OIDC, Redis session, upload, gRPC, search, deletion and logout', a
     await page.keyboard.press('Escape')
     await expect(page.getByRole('dialog')).toHaveCount(0)
     // Enter bypasses the delay and cancels the timer, so only one request runs.
+    await page.clock.pauseAt(new Date(await page.evaluate(() => Date.now()) + 1000))
     await search.fill('enterquery')
     await search.press('Enter')
+    // Allow UI scheduling, while staying below the 350 ms search delay.
+    await page.clock.runFor(50)
     await expect(page).toHaveURL(/\/search\?q=enterquery$/)
-    await page.waitForTimeout(500)
+    await page.clock.runFor(500)
     expect(queries.filter(query => query === 'enterquery')).toHaveLength(1)
+    await page.clock.resume()
+    await page.clock.pauseAt(new Date(await page.evaluate(() => Date.now()) + 1000))
     await search.fill('cancelled-query')
     await page.getByRole('link', { name: 'RedNote', exact: true }).click()
+    // Navigation may load asynchronous page data; its guard must cancel the timer first.
+    await page.clock.resume()
     await expect(page).toHaveURL(`${frontendUrl}/`)
-    await page.waitForTimeout(500)
+    await page.clock.fastForward(500)
     expect(queries).not.toContain('cancelled-query')
 
     const rootResponse = await page.request.post(`/api/posts/${post.id}/comments`, {
@@ -345,8 +360,8 @@ test('logout clears current-user state while a profile refresh is in flight', as
     await page.goto('/me')
     await expect(page.getByRole('button', { name: '编辑资料', exact: true })).toBeVisible()
     await page.waitForFunction(() => {
-        const root = document.querySelector('#__nuxt')
-        return root && '__vue_app__' in root
+        const root = document.querySelector('#__nuxt') as HTMLElement & { __vue_app__?: { $nuxt?: { isHydrating: boolean } } } | null
+        return root?.__vue_app__?.$nuxt?.isHydrating === false
     })
     const refresh = page.getByRole('button', { name: '刷新', exact: true })
     await expect(refresh).toBeEnabled()

@@ -1,0 +1,61 @@
+{
+  "name": "RedNote · Aspire",
+  "image": "mcr.microsoft.com/devcontainers/base:3-ubuntu24.04",
+  "features": {
+    "ghcr.io/microsoft/aspire-devcontainer-feature/aspire:2": {},
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+    "ghcr.io/devcontainers/features/dotnet:2": {
+      "version": "10.0"
+    },
+    "ghcr.io/devcontainers/features/node:2": {
+      "version": "24"
+    },
+    "ghcr.io/devcontainers/features/powershell:2": {}
+  },
+  "remoteUser": "vscode",
+  "hostRequirements": {
+    "cpus": 4,
+    "memory": "16gb",
+    "storage": "32gb"
+  },
+  "remoteEnv": {
+    "SSL_CERT_DIR": "/home/vscode/.aspnet/dev-certs/trust",
+    "SSL_CERT_FILE": "/etc/ssl/certs/ca-certificates.crt",
+    "NODE_USE_SYSTEM_CA": "1"
+  },
+  "forwardPorts": [
+    8443,
+    17286
+  ],
+  "portsAttributes": {
+    "8443": {
+      "label": "RedNote · 前台 /admin 管理端",
+      "protocol": "https",
+      "onAutoForward": "notify"
+    },
+    "17286": {
+      "label": "Aspire Dashboard",
+      "protocol": "https",
+      "onAutoForward": "notify"
+    }
+  },
+  "otherPortsAttributes": {
+    "onAutoForward": "ignore"
+  },
+  "postCreateCommand": "bash .devcontainer/setup.sh",
+  "postStartCommand": "bash .devcontainer/on-start.sh",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "microsoft-aspire.aspire-vscode",
+        "ms-dotnettools.csdevkit",
+        "Vue.volar",
+        "dbaeumer.vscode-eslint"
+      ],
+      "settings": {
+        "remote.autoForwardPorts": true,
+        "remote.autoForwardPortsSource": "hybrid"
+      }
+    }
+  }
+}

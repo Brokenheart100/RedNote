@@ -19,5 +19,6 @@ export default defineNuxtConfig({
     oauth: { oidc: { clientId: 'rednote-admin', clientSecret: '', openidConfig: '', redirectURL: '' } },
     public: { adminBaseUrl: '' },
   },
-  typescript: { typeCheck: true },
+  // Builds and CI check types; keep development servers free of full-project watchers.
+  typescript: { typeCheck: 'build' },
 })

@@ -16,6 +16,10 @@ on:
       - '.editorconfig'
       - '.gitattributes'
       - 'infrastructure/gorse/**'
+      - 'infrastructure/minio/**'
+      - '.devcontainer/**'
+      - 'scripts/start-codespaces.sh'
+      - 'scripts/initialize-admin-secrets.ps1'
       - 'scripts/test-backend.ps1'
       - '.github/workflows/backend.yml'
   pull_request:
@@ -32,6 +36,10 @@ on:
       - '.editorconfig'
       - '.gitattributes'
       - 'infrastructure/gorse/**'
+      - 'infrastructure/minio/**'
+      - '.devcontainer/**'
+      - 'scripts/start-codespaces.sh'
+      - 'scripts/initialize-admin-secrets.ps1'
       - 'scripts/test-backend.ps1'
       - '.github/workflows/backend.yml'
 
@@ -58,6 +66,8 @@ jobs:
           global-json-file: global.json
       - name: Restore
         run: dotnet restore RedNote.slnx
+      - name: Check development container scripts
+        run: bash -n .devcontainer/setup.sh .devcontainer/on-start.sh scripts/start-codespaces.sh
       - name: Build
         run: dotnet build RedNote.slnx --configuration Release --no-restore
       - name: Integration tests with isolated containers

@@ -1,1 +1,3 @@
 /infrastructure/gorse/*.sh text eol=lf
+/.devcontainer/*.sh text eol=lf
+/scripts/*.sh text eol=lf

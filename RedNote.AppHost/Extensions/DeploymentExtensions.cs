@@ -13,7 +13,8 @@ internal static class DeploymentExtensions
         if (builder.ExecutionContext.IsPublishMode)
         {
             // MediaService configures the matching container listeners in C#.
-            mediaService.WithHttpEndpoint(targetPort: 8081, name: "grpc");
+            mediaService.WithEnvironment("Media__UseContainerEndpoints", "true")
+                .WithHttpEndpoint(targetPort: 8081, name: "grpc");
             contentService.WithEnvironment("Grpc__MediaAddress", mediaService.GetEndpoint("grpc"));
         }
         else
@@ -29,13 +30,17 @@ internal static class DeploymentExtensions
         if (!builder.ExecutionContext.IsPublishMode) return;
 
         identityService.PublishAsDockerComposeService((_, service) =>
+        {
             service.AddVolume(new Volume
             {
                 Name = "identity-keys",
                 Source = "identity-keys",
                 Target = "/home/app",
                 Type = "volume"
-            }))
-            .WithEnvironment("HOME", "/home/app");
+            });
+            // Only the published container has this home directory and mounted volume.
+            // Resource environment also reaches local EF migration-bundle tooling.
+            service.AddEnvironmentalVariable("HOME", "/home/app");
+        });
     }
 }

@@ -10,8 +10,7 @@ public sealed class UserServiceDbContextFactory
         "Host=localhost;" +
         "Port=6543;" +
         "Database=userdb;" +
-        "Username=postgres;" +
-        "Password=cS85CY0A5+}0umePd8PgpY";
+        "Username=postgres";
 
     public UserServiceDbContext CreateDbContext(
         string[] args)
@@ -19,8 +18,10 @@ public sealed class UserServiceDbContextFactory
         var optionsBuilder =
             new DbContextOptionsBuilder<UserServiceDbContext>();
 
+        // Aspire injects the actual database credentials, including during EF migration commands.
+        var connectionString = Environment.GetEnvironmentVariable("ConnectionStrings__userdb");
         optionsBuilder.UseNpgsql(
-            DesignTimeConnectionString);
+            string.IsNullOrWhiteSpace(connectionString) ? DesignTimeConnectionString : connectionString);
 
         return new UserServiceDbContext(
             optionsBuilder.Options);

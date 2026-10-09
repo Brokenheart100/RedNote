@@ -1,5 +1,7 @@
 # 本地 HTTPS 开发
 
+GitHub Codespaces 使用 [Codespaces 配置](codespaces.md)，公开入口由 AppHost 自动适配转发地址。
+
 首次配置开发证书：
 
 ```powershell

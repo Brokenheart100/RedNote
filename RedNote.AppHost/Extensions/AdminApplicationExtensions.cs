@@ -13,9 +13,8 @@ internal static class AdminApplicationExtensions
         var sessionPassword = builder.AddParameter("admin-session-password", secret: true);
         var publicAdmin = ReferenceExpression.Create($"{publicGateway}/admin");
 #pragma warning disable ASPIREJAVASCRIPT001, ASPIREDOCKERFILEBUILDER001
-#pragma warning disable ASPIREBROWSERLOGS001
         var admin = builder.AddViteApp("admin", "../RedNote.Admin")
-            .WithBrowserLogs(browser: "msedge", userDataMode: BrowserUserDataMode.Isolated)
+            .WithDevelopmentBrowserLogs()
             .WithNpm()
             .PublishAsNodeServer(entryPoint: ".output/server/index.mjs", outputPath: ".output")
             .WithSharedBffInfrastructure()
@@ -27,7 +26,6 @@ internal static class AdminApplicationExtensions
             .WithEnvironment("NUXT_OAUTH_OIDC_OPENID_CONFIG", ReferenceExpression.Create($"{internalGateway}/.well-known/openid-configuration"))
             .WithEnvironment("NUXT_OAUTH_OIDC_REDIRECT_URL", ReferenceExpression.Create($"{publicAdmin}/auth/rednote"))
             .WithEnvironment("NUXT_SESSION_PASSWORD", sessionPassword);
-#pragma warning restore ASPIREBROWSERLOGS001
 #pragma warning restore ASPIREJAVASCRIPT001, ASPIREDOCKERFILEBUILDER001
         if (builder.ExecutionContext.IsRunMode)
             admin.WithCertificateTrustScope(CertificateTrustScope.None).WithEnvironment("NODE_EXTRA_CA_CERTS", builder.ExportDevelopmentCertificate())

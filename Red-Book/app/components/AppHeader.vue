@@ -77,8 +77,11 @@ watch(searchQuery, value => {
         void debouncedSearch()
     }
 })
-// Prevent a delayed search from navigating after leaving the page or going back.
-watch(() => route.fullPath, () => debouncedSearch.cancel(), { flush: 'sync' })
+// Cancel before an asynchronous navigation can be overtaken by a pending search.
+const removeSearchGuard = useRouter().beforeEach(() => {
+    debouncedSearch.cancel()
+})
+onScopeDispose(removeSearchGuard)
 onScopeDispose(() => debouncedSearch.cancel())
 
 const userMenuItems = computed(() => [

@@ -6,8 +6,9 @@ public static class MediaEndpointExtensions
 {
     public static void ConfigureMediaEndpoints(this WebApplicationBuilder builder)
     {
-        // The .NET container image supplies this flag. Local Aspire keeps its HTTPS launch endpoint.
-        if (!builder.Configuration.GetValue<bool>("DOTNET_RUNNING_IN_CONTAINER")) return;
+        // A development container still uses Aspire's HTTPS endpoints. The AppHost
+        // explicitly selects the separate HTTP listeners when publishing containers.
+        if (!builder.Configuration.GetValue<bool>("Media:UseContainerEndpoints")) return;
 
         builder.WebHost.ConfigureKestrel(options =>
         {
